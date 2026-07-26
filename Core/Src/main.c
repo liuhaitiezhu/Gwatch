@@ -18,13 +18,14 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "spi.h"
 #include "usart.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
-
+#include "bsp_ili9341_4line.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -109,8 +110,10 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_USART1_UART_Init();
+  MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
-
+ILI9341_Init();
+ILI9341_Clear(BLUE);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -118,9 +121,7 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-printf("Hello, World!\r\n");
-printf("fuck, World!\r\n");
-HAL_Delay(1000); // Delay for 1 second
+
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
