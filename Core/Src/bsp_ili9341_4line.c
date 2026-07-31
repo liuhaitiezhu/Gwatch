@@ -7,7 +7,7 @@
   */
 #include "bsp_ili9341_4line.h"
 #include "spi.h"
-#include  "stdint.h" 
+#include "main.h"
 //
 static uint8_t DFT_SCAN_DIR; //扫描方向 
 //管理ILI9341重要参数
@@ -20,7 +20,7 @@ static _ILI9341_dev ILI9341dev;
 * @return  :None 
 **********************************************************************
 */
-inline void ILI9341_WR_REG(uint8_t REG)//发送选择那个寄存器
+inline void ILI9341_WR_REG(uint8_t REG)
 { 
 	HAL_GPIO_WritePin(LCD_DCX_GPIO_Port, LCD_DCX_Pin, GPIO_PIN_RESET);
 	
@@ -90,7 +90,7 @@ inline void ILI9341_WriteRAM(uint16_t DAT)
 */
 inline void ILI9341_SetCursor(uint16_t Xpos, uint16_t Ypos)
 {	 
-	uint8_t TempBufferX[2] = {Xpos >> 8, Xpos & 0XFF};//这里涉及的只是uint16放到uint8的数组的问题
+	uint8_t TempBufferX[2] = {Xpos >> 8, Xpos & 0XFF};
 	uint8_t TempBufferY[2] = {Ypos >> 8, Ypos & 0XFF};
 	//
 	ILI9341_WR_REG(ILI9341dev.setxcmd); 
@@ -356,7 +356,7 @@ void ILI9341_Init(void)
 	ILI9341_WR_REG(0x21);	//Display Inversion ON 
 	HAL_Delay(120);
 	ILI9341_WR_REG(0x29); //display on	
-  ILI9341_Display_Dir(SCAN_Vertical);	//竖屏显示
+  ILI9341_Display_Dir(SCAN_Horizontal);	//竖屏显示
 	//ILI9341_BL=1;					
 	ILI9341_Clear(BLACK);
 }  

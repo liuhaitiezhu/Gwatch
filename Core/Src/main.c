@@ -113,7 +113,7 @@ int main(void)
   MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
 ILI9341_Init();
-ILI9341_Clear(BLUE);
+ILI9341_Clear(RED);
   /* USER CODE END 2 */
 
   /* Infinite loop */

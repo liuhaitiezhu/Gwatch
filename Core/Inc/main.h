@@ -63,8 +63,7 @@ void Error_Handler(void);
 #define LCD_RST_GPIO_Port GPIOA
 
 /* USER CODE BEGIN Private defines */
-//为什么放置在main.h，因为和具体引脚有关的内容为了方便移植，必须放在具体项目的文件中，不能放在ili9341驱动文件中，
-//因为不同项目的引脚是不同的，放在ili9341驱动文件中会导致不同项目的引脚不一样，
+
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

@@ -10,7 +10,7 @@
 //
 #include "main.h"
 //
-typedef struct  //这里是配置一些基本参数，因为横屏和行和竖屏的行完全不一样
+typedef struct  
 {										    
 	uint16_t width;			//ili9341 宽度
 	uint16_t height;		//ili9341 高度
