@@ -112,8 +112,9 @@ int main(void)
   MX_USART1_UART_Init();
   MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
-ILI9341_Init();
-ILI9341_Clear(RED);
+  ILI9341_Init();
+  ILI9341_Clear(RED);
+  _HW_FillFrame(0U, 0U, 20U, 20U, GREEN);
   /* USER CODE END 2 */
 
   /* Infinite loop */
