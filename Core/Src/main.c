@@ -113,8 +113,7 @@ int main(void)
   MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
   ILI9341_Init();
-  ILI9341_Clear(RED);
-  _HW_FillFrame(0U, 0U, 20U, 20U, GREEN);
+ LCD_Picture();
   /* USER CODE END 2 */
 
   /* Infinite loop */

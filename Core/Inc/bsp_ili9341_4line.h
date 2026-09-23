@@ -79,5 +79,5 @@ void LCD_DrawRect(uint16_t _usX, uint16_t _usY, uint16_t _usHeight, uint16_t _us
 void LCD_DrawCircle(uint16_t _usX, uint16_t _usY, uint16_t _usRadius, uint16_t _usColor);	//绘制一个圆，笔宽为1个像素 
 
 void _HW_FillFrame(uint16_t sx, uint16_t sy, uint16_t ex, uint16_t ey, uint16_t color);
-
+void LCD_Picture(void);	//显示图片
 #endif /* __BSP_ILI9341_4LINE_H__ */

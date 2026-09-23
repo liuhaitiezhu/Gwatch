@@ -356,7 +356,7 @@ void ILI9341_Init(void)
 	ILI9341_WR_REG(0x21);	//Display Inversion ON 
 	HAL_Delay(120);
 	ILI9341_WR_REG(0x29); //display on	
-  ILI9341_Display_Dir(SCAN_Horizontal);	//竖屏显示
+  ILI9341_Display_Dir(SCAN_Vertical);	//设置扫描方向和显示方向
 	//ILI9341_BL=1;					
 	ILI9341_Clear(BLACK);
 }  
@@ -555,3 +555,57 @@ void LCD_DrawCircle(uint16_t _usX, uint16_t _usY, uint16_t _usRadius, uint16_t _
 	}
 }
 
+
+//显示一张图片
+extern const unsigned char gImage_yuexinmao1[153600];
+extern const unsigned char gImage_yuexinmao2[153600];
+extern const unsigned char gImage_yuexinmao3[153600];
+extern const unsigned char gImage_yuexinmao4[153600];
+void LCD_Picture(void){
+  uint32_t len=0,i=0,j=0;
+  uint8_t temp[10]={0};
+  ILI9341_WR_REG(0x2C); //写入GRAM
+  len=240*320*2; //计算总字节数
+  while(1){
+    i=0;
+  while(i<len)
+  {
+  for(j=0;j<10;j++)
+   {
+    temp[j]=gImage_yuexinmao1[i+j];
+   }
+   HAL_SPI_Transmit(&hspi1, temp, 10, 1);  //发送数据
+    i+=10;
+  }
+  i=0;
+  while(i<len)
+  {
+  for(j=0;j<10;j++)
+   {
+    temp[j]=gImage_yuexinmao2[i+j];
+   }
+   HAL_SPI_Transmit(&hspi1, temp, 10, 1);  //发送数据
+    i+=10;
+  }
+  i=0;
+  while(i<len)
+  {
+  for(j=0;j<10;j++)
+   {
+    temp[j]=gImage_yuexinmao3[i+j];
+   }
+   HAL_SPI_Transmit(&hspi1, temp, 10, 1);  //发送数据
+    i+=10;
+  }
+  i=0;
+  while(i<len)
+  {
+  for(j=0;j<10;j++)
+   {
+    temp[j]=gImage_yuexinmao4[i+j];
+   }
+   HAL_SPI_Transmit(&hspi1, temp, 10, 1);  //发送数据
+    i+=10;
+  }
+}
+}
