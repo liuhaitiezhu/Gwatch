@@ -11,7 +11,7 @@
 //
 static uint8_t DFT_SCAN_DIR; //扫描方向 
 //管理ILI9341重要参数
-static _ILI9341_dev ILI9341dev;		  
+static _ILI9341_dev ILI9341dev;		//这个参数  
 /*
 **********************************************************************
 * @fun     :ILI9341_WR_REG 
@@ -22,7 +22,7 @@ static _ILI9341_dev ILI9341dev;
 */
 inline void ILI9341_WR_REG(uint8_t REG)
 { 
-	HAL_GPIO_WritePin(LCD_DCX_GPIO_Port, LCD_DCX_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(LCD_DCX_GPIO_Port, LCD_DCX_Pin, GPIO_PIN_RESET);//拉低片选
 	
 	HAL_SPI_Transmit(&hspi1,&REG,1, 1);  //不读取从机返回数据 	
 	
@@ -167,7 +167,7 @@ inline void ILI9341_SetArea(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
 * @return  :None 
 **********************************************************************
 */
-void ILI9341_Display_Dir(Screen_ShowDIR ShowDIR)
+void ILI9341_Display_Dir(Screen_ShowDIR ShowDIR)  //这里进行对于初始化参数的设置
 {
 	uint16_t regval=0x08; //RGB-BGR Order不能改变
 	uint8_t dirreg=0;
