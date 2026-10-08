@@ -57,10 +57,7 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-static uint8_t gallery_current;
-static uint8_t gallery_target;
-static uint8_t gallery_rendering;
-static uint32_t gallery_pending;
+static uint8_t picture_rendering;
 
 /* USER CODE END PV */
 
@@ -93,60 +90,30 @@ int _write(int file, char *ptr, int len)
   return len;
 }
 
-static void Gallery_Init(void)
+static void Display_Init(void)
 {
-  gallery_current = gallery_target = 0U;
-  gallery_pending = 0U;
   HAL_StatusTypeDef status = LCD_PictureStart(0U);
-  gallery_rendering = status == HAL_OK;
+  picture_rendering = status == HAL_OK;
   if (status != HAL_OK)
   {
-    printf("[gallery] first picture failed: status=%u\r\n", (unsigned int)status);
+    printf("[display] picture start failed: status=%u\r\n", (unsigned int)status);
   }
 }
 
-static void Gallery_Task(void)
+static void Display_Task(void)
 {
-  uint8_t swipe = FT6336_take_swipe();
-  if (swipe == FT6336_GESTURE_MOVE_LEFT || swipe == FT6336_GESTURE_MOVE_RIGHT ||
-      swipe == FT6336_GESTURE_MOVE_UP || swipe == FT6336_GESTURE_MOVE_DOWN)
+  if (!picture_rendering)
   {
-    if (gallery_pending != UINT32_MAX)
-    {
-      ++gallery_pending;
-    }
+    return;
   }
 
-  if (gallery_rendering)
+  HAL_StatusTypeDef status = LCD_PictureTask();
+  if (status != HAL_BUSY)
   {
-    HAL_StatusTypeDef status = LCD_PictureTask();
-    if (status == HAL_OK)
+    picture_rendering = 0U;
+    if (status != HAL_OK)
     {
-      gallery_rendering = 0U;
-      gallery_current = gallery_target;
-      printf("[gallery] picture=%u/%u\r\n", (unsigned int)(gallery_current + 1U),
-             (unsigned int)LCD_PICTURE_COUNT);
-    }
-    else if (status != HAL_BUSY)
-    {
-      gallery_rendering = 0U;
-      printf("[gallery] picture transfer failed: status=%u\r\n", (unsigned int)status);
-    }
-  }
-
-  if (!gallery_rendering && gallery_pending != 0U)
-  {
-    --gallery_pending;
-    uint8_t next = (uint8_t)((gallery_current + 1U) % LCD_PICTURE_COUNT);
-    HAL_StatusTypeDef status = LCD_PictureStart(next);
-    if (status == HAL_OK)
-    {
-      gallery_target = next;
-      gallery_rendering = 1U;
-    }
-    else
-    {
-      printf("[gallery] next picture failed: status=%u\r\n", (unsigned int)status);
+      printf("[display] picture transfer failed: status=%u\r\n", (unsigned int)status);
     }
   }
 }
@@ -190,7 +157,7 @@ int main(void)
   MX_TouchGFX_Init();
 #endif
   /* USER CODE BEGIN 2 */
-  printf("\r\nFT6336 swipe gallery v4: native LCD, USART1 baud=%lu\r\n",
+  printf("\r\nFT6336 single-touch coordinates and swipe recognition: USART1 baud=%lu\r\n",
          (unsigned long)huart1.Init.BaudRate);
   ILI9341_Init();//这里进行初始化，
   /* Touch RESET shares PA8 with LCD: initialize after the LCD reset sequence. */
@@ -199,7 +166,7 @@ int main(void)
   {
     printf("[gesture-sw] disabled: configuration not confirmed; coordinate monitor remains active\r\n");
   }
-  Gallery_Init();
+  Display_Init();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -213,7 +180,9 @@ int main(void)
 #endif
     /* USER CODE BEGIN 3 */
     FT6336_scan_task();
-    Gallery_Task();
+    /* 手势已由触摸任务打印；本示例仅取走事件，不触发切图。 */
+    (void)FT6336_take_swipe();
+    Display_Task();
   }
   /* USER CODE END 3 */
 }
