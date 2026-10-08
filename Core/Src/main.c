@@ -157,15 +157,11 @@ int main(void)
   MX_TouchGFX_Init();
 #endif
   /* USER CODE BEGIN 2 */
-  printf("\r\nFT6336 single-touch coordinates and swipe recognition: USART1 baud=%lu\r\n",
+  printf("\r\nFT6336 click coordinates and swipe recognition: USART1 baud=%lu\r\n",
          (unsigned long)huart1.Init.BaudRate);
   ILI9341_Init();//这里进行初始化，
   /* Touch RESET shares PA8 with LCD: initialize after the LCD reset sequence. */
   FT6336_init();
-  if (!FT6336_swipe_init())
-  {
-    printf("[gesture-sw] disabled: configuration not confirmed; coordinate monitor remains active\r\n");
-  }
   Display_Init();
   /* USER CODE END 2 */
 
@@ -180,8 +176,6 @@ int main(void)
 #endif
     /* USER CODE BEGIN 3 */
     FT6336_scan_task();
-    /* 手势已由触摸任务打印；本示例仅取走事件，不触发切图。 */
-    (void)FT6336_take_swipe();
     Display_Task();
   }
   /* USER CODE END 3 */
