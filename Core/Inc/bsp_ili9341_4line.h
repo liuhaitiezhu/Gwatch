@@ -80,4 +80,7 @@ void LCD_DrawCircle(uint16_t _usX, uint16_t _usY, uint16_t _usRadius, uint16_t _
 
 void _HW_FillFrame(uint16_t sx, uint16_t sy, uint16_t ex, uint16_t ey, uint16_t color);
 void LCD_Picture(void);	//显示图片
+#define LCD_PICTURE_COUNT 4U
+HAL_StatusTypeDef LCD_PictureStart(uint8_t index);  /* 0~3，开启一张 240x320 RGB565 图片传输 */
+HAL_StatusTypeDef LCD_PictureTask(void);            /* 每次发送 1024 字节，HAL_BUSY 表示未完成 */
 #endif /* __BSP_ILI9341_4LINE_H__ */

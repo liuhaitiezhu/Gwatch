@@ -561,51 +561,92 @@ extern const unsigned char gImage_yuexinmao1[153600];
 extern const unsigned char gImage_yuexinmao2[153600];
 extern const unsigned char gImage_yuexinmao3[153600];
 extern const unsigned char gImage_yuexinmao4[153600];
-void LCD_Picture(void){
-  uint32_t len=0,i=0,j=0;
-  uint8_t temp[10]={0};
-  ILI9341_WR_REG(0x2C); //写入GRAM
-  len=240*320*2; //计算总字节数
-  while(1){
-    i=0;
-  while(i<len)
-  {
-  for(j=0;j<10;j++)
-   {
-    temp[j]=gImage_yuexinmao1[i+j];
-   }
-   HAL_SPI_Transmit(&hspi1, temp, 10, 1);  //发送数据
-    i+=10;
-  }
-  i=0;
-  while(i<len)
-  {
-  for(j=0;j<10;j++)
-   {
-    temp[j]=gImage_yuexinmao2[i+j];
-   }
-   HAL_SPI_Transmit(&hspi1, temp, 10, 1);  //发送数据
-    i+=10;
-  }
-  i=0;
-  while(i<len)
-  {
-  for(j=0;j<10;j++)
-   {
-    temp[j]=gImage_yuexinmao3[i+j];
-   }
-   HAL_SPI_Transmit(&hspi1, temp, 10, 1);  //发送数据
-    i+=10;
-  }
-  i=0;
-  while(i<len)
-  {
-  for(j=0;j<10;j++)
-   {
-    temp[j]=gImage_yuexinmao4[i+j];
-   }
-   HAL_SPI_Transmit(&hspi1, temp, 10, 1);  //发送数据
-    i+=10;
-  }
+static const uint8_t *const lcd_pictures[LCD_PICTURE_COUNT] = {
+    gImage_yuexinmao1, gImage_yuexinmao2, gImage_yuexinmao3, gImage_yuexinmao4
+};
+#define LCD_PICTURE_BYTES (240U * 320U * 2U)
+#define LCD_PICTURE_CHUNK 1024U
+static const uint8_t *picture_data;
+static uint32_t picture_offset;
+
+static HAL_StatusTypeDef LCD_PictureCommand(uint8_t command, const uint8_t *data, uint16_t size)
+{
+    HAL_GPIO_WritePin(LCD_DCX_GPIO_Port, LCD_DCX_Pin, GPIO_PIN_RESET);
+    HAL_StatusTypeDef status = HAL_SPI_Transmit(&hspi1, &command, 1, 20);
+    HAL_GPIO_WritePin(LCD_DCX_GPIO_Port, LCD_DCX_Pin, GPIO_PIN_SET);
+    if (status == HAL_OK && size != 0U)
+    {
+        status = HAL_SPI_Transmit(&hspi1, data, size, 20);
+    }
+    return status;
 }
+
+HAL_StatusTypeDef LCD_PictureStart(uint8_t index)
+{
+    if (index >= LCD_PICTURE_COUNT || ILI9341dev.width != 240U || ILI9341dev.height != 320U)
+    {
+        return HAL_ERROR;
+    }
+    if (picture_data != NULL)
+    {
+        return HAL_BUSY;
+    }
+    const uint8_t columns[4] = {0U, 0U, 0U, 239U};
+    const uint8_t rows[4] = {0U, 0U, 1U, 63U};
+    HAL_StatusTypeDef status = LCD_PictureCommand(0x2A, columns, sizeof(columns));
+    if (status == HAL_OK)
+    {
+        status = LCD_PictureCommand(0x2B, rows, sizeof(rows));
+    }
+    if (status == HAL_OK)
+    {
+        status = LCD_PictureCommand(0x2C, NULL, 0);
+    }
+    if (status != HAL_OK)
+    {
+        old_x0 = old_x1 = old_y0 = old_y1 = 0xFFFFU;
+        return status;
+    }
+    old_x0 = old_y0 = 0U;
+    old_x1 = 239U;
+    old_y1 = 319U;
+    picture_offset = 0U;
+    picture_data = lcd_pictures[index];
+    return HAL_OK;
+}
+
+/* 一次仅发送一个数据块；主循环在两块之间继续采集触点，整帧不会阻塞采集。 */
+HAL_StatusTypeDef LCD_PictureTask(void)
+{
+    if (picture_data == NULL)
+    {
+        return HAL_OK;
+    }
+    uint32_t remaining = LCD_PICTURE_BYTES - picture_offset;
+    uint16_t size = (uint16_t)(remaining > LCD_PICTURE_CHUNK ? LCD_PICTURE_CHUNK : remaining);
+    HAL_StatusTypeDef status = HAL_SPI_Transmit(&hspi1, picture_data + picture_offset, size, 20);
+    if (status != HAL_OK)
+    {
+        picture_data = NULL;
+        return status == HAL_BUSY ? HAL_ERROR : status;
+    }
+    picture_offset += size;
+    if (picture_offset == LCD_PICTURE_BYTES)
+    {
+        picture_data = NULL;
+        return HAL_OK;
+    }
+    return HAL_BUSY;
+}
+
+/* 兼容旧接口：只显示第一张并返回，不再无限播放。新应用使用上面的分块任务。 */
+void LCD_Picture(void)
+{
+    if (LCD_PictureStart(0U) != HAL_OK)
+    {
+        return;
+    }
+    while (LCD_PictureTask() == HAL_BUSY)
+    {
+    }
 }

@@ -29,7 +29,7 @@
 
 extern "C" void touchgfx_init();
 extern "C" void touchgfx_taskEntry();
-extern "C" void touchgfx_components_init();//告诉编译器这是C语言的函数，防止C++编译器对函数名进行改编
+extern "C" void touchgfx_components_init();
 
 static STM32TouchController tc;
 static STM32DMA dma;

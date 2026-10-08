@@ -37,8 +37,16 @@ add_executable(${CMAKE_PROJECT_NAME})
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
 
-# Add touchgfx generated sources and libraries
-add_subdirectory(cmake/touchgfx)
+option(SPI_DEMO_USE_TOUCHGFX "Run the TouchGFX application" OFF)
+if(SPI_DEMO_USE_TOUCHGFX)
+    add_subdirectory(cmake/touchgfx)
+    target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE SPI_DEMO_USE_TOUCHGFX)
+else()
+    # Keep generated files intact; exclude their GUI sources for the native demo.
+    get_target_property(SPI_DEMO_SOURCES ${CMAKE_PROJECT_NAME} SOURCES)
+    list(FILTER SPI_DEMO_SOURCES EXCLUDE REGEX "[/\\\\]TouchGFX[/\\\\]")
+    set_property(TARGET ${CMAKE_PROJECT_NAME} PROPERTY SOURCES ${SPI_DEMO_SOURCES})
+endif()
 
 # Link directories setup
 target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
@@ -49,6 +57,7 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
     Core/Src/bsp_ili9341_4line.c
+    Core/Src/bsp_ft6336.c
    assets/array/yuexinmao1.c
    assets/array/yuexinmao2.c
    assets/array/yuexinmao3.c
@@ -73,4 +82,12 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
     stm32cubemx
 
     # Add user defined libraries
+)
+
+add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_OBJCOPY} -O ihex $<TARGET_FILE:${CMAKE_PROJECT_NAME}>
+            ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PROJECT_NAME}.hex
+    COMMAND ${CMAKE_OBJCOPY} -O binary -S $<TARGET_FILE:${CMAKE_PROJECT_NAME}>
+            ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PROJECT_NAME}.bin
+    COMMENT "Generating firmware HEX and BIN"
 )
