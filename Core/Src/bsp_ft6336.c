@@ -44,6 +44,7 @@ static struct
 
 static volatile uint8_t touch_irq_pending;
 static uint8_t swipe_enabled;
+static FT6336_Swipe pending_swipe;
 
 static uint8_t FT6336_read(uint8_t reg, uint8_t *data, uint16_t size);
 static uint8_t FT6336_write(uint8_t reg, uint8_t value);
@@ -57,6 +58,7 @@ void FT6336_init(void)
     task.poll_started = 0U;
     task.error_reported = 0U;
     touch_irq_pending = 0U;
+    pending_swipe = FT6336_SWIPE_NONE;
 
     /* RESET 与 LCD 共用 PA8，LCD 初始化后只等待触摸启动，不再次复位。 */
     HAL_Delay(300);
@@ -96,7 +98,7 @@ void FT6336_scan_task(void)
     touch_irq_pending = 0U;
     __set_PRIMASK(primask);
 
-    if (task.poll_started && !pending)
+    if (task.poll_started && !pending)//已经采样过并且没有中断进入下列判断
     {
         if (task.interrupt_mode_confirmed && touch.state == TOUCH_IDLE)
         {
@@ -174,6 +176,13 @@ void FT6336_scan_task(void)
     }
 }
 
+FT6336_Swipe FT6336_take_swipe(void)
+{
+    FT6336_Swipe swipe = pending_swipe;
+    pending_swipe = FT6336_SWIPE_NONE;
+    return swipe;
+}
+
 static void FT6336_track_position(uint16_t x, uint16_t y, uint32_t now)
 {
     if (touch.state != TOUCH_TRACKING)
@@ -197,11 +206,12 @@ static void FT6336_track_position(uint16_t x, uint16_t y, uint32_t now)
         return;
     }
 
-    const char *direction = distance_x >= distance_y ?
-        (dx > 0 ? "Move Right" : "Move Left") :
-        (dy > 0 ? "Move Down" : "Move Up");
+    static const char *const names[] = {"None", "Move Left", "Move Right", "Move Up", "Move Down"};
+    pending_swipe = distance_x >= distance_y ?
+        (dx > 0 ? FT6336_SWIPE_RIGHT : FT6336_SWIPE_LEFT) :
+        (dy > 0 ? FT6336_SWIPE_DOWN : FT6336_SWIPE_UP);
     touch.state = TOUCH_REPORTED;
-    printf("[gesture-sw] %s, dx=%ld, dy=%ld, duration=%lu ms\r\n", direction,
+    printf("[gesture-sw] %s, dx=%ld, dy=%ld, duration=%lu ms\r\n", names[pending_swipe],
            (long)dx, (long)dy, (unsigned long)(now - touch.start_tick));
 }
 

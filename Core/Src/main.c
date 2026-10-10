@@ -57,7 +57,14 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-static uint8_t picture_rendering;
+static const uint16_t screen_colors[] = {
+  0x0000U, 0xF800U, 0x07E0U, 0x001FU, 0xFFE0U, 0x07FFU, 0xF81FU, 0xFFFFU
+}; /* Black, Red, Green, Blue, Yellow, Cyan, Magenta, White. */
+static uint8_t display_ready;
+static uint8_t color_current;
+static uint8_t color_target;
+static uint8_t color_inflight;
+static uint8_t color_rendering;
 
 /* USER CODE END PV */
 
@@ -90,32 +97,54 @@ int _write(int file, char *ptr, int len)
   return len;
 }
 
-static void Display_Init(void)
-{
-  HAL_StatusTypeDef status = LCD_PictureStart(0U);
-  picture_rendering = status == HAL_OK;
-  if (status != HAL_OK)
-  {
-    printf("[display] picture start failed: status=%u\r\n", (unsigned int)status);
-  }
-}
-
 static void Display_Task(void)
 {
-  if (!picture_rendering)
+  FT6336_Swipe swipe = FT6336_take_swipe();
+  if (!display_ready)
   {
     return;
   }
-
-  HAL_StatusTypeDef status = LCD_PictureTask();
-  if (status != HAL_BUSY)
+  const uint8_t count = sizeof(screen_colors) / sizeof(screen_colors[0]);
+  if (swipe == FT6336_SWIPE_LEFT || swipe == FT6336_SWIPE_UP)
   {
-    picture_rendering = 0U;
+    color_target = (uint8_t)((color_target + 1U) % count);
+  }
+  else if (swipe == FT6336_SWIPE_RIGHT || swipe == FT6336_SWIPE_DOWN)
+  {
+    color_target = (uint8_t)((color_target + count - 1U) % count);
+  }
+
+  if (!color_rendering && color_target != color_current)
+  {
+    HAL_StatusTypeDef status = LCD_ColorStart(screen_colors[color_target]);
     if (status != HAL_OK)
     {
-      printf("[display] picture transfer failed: status=%u\r\n", (unsigned int)status);
+      color_target = color_current;
+      printf("[display] color start failed: status=%u\r\n", (unsigned int)status);
+      return;
     }
+    color_inflight = color_target;
+    color_rendering = 1U;
   }
+  if (!color_rendering)
+  {
+    return;
+  }
+  HAL_StatusTypeDef status = LCD_TransferTask();
+  if (status == HAL_BUSY)
+  {
+    return;
+  }
+  color_rendering = 0U;
+  if (status != HAL_OK)
+  {
+    color_target = color_current;
+    printf("[display] color transfer failed: status=%u\r\n", (unsigned int)status);
+    return;
+  }
+  color_current = color_inflight;
+  printf("[display] color=%u/%u, RGB565=0x%04X\r\n", (unsigned int)(color_current + 1U),
+         (unsigned int)count, (unsigned int)screen_colors[color_current]);
 }
 
 /* USER CODE END 0 */
@@ -157,12 +186,16 @@ int main(void)
   MX_TouchGFX_Init();
 #endif
   /* USER CODE BEGIN 2 */
-  printf("\r\nFT6336 click coordinates and swipe recognition: USART1 baud=%lu\r\n",
+  printf("\r\nFT6336 swipe colors: USART1 baud=%lu\r\n",
          (unsigned long)huart1.Init.BaudRate);
-  ILI9341_Init();//这里进行初始化，
+  HAL_StatusTypeDef lcd_status = ILI9341_Init();
+  if (lcd_status != HAL_OK)
+  {
+    printf("[display] initialization failed: status=%u\r\n", (unsigned int)lcd_status);
+  }
   /* Touch RESET shares PA8 with LCD: initialize after the LCD reset sequence. */
   FT6336_init();
-  Display_Init();
+  display_ready = lcd_status == HAL_OK; /* ILI9341_Init has already cleared the screen to black. */
   /* USER CODE END 2 */
 
   /* Infinite loop */
