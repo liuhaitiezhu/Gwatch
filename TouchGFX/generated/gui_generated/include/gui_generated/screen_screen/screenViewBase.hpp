@@ -9,7 +9,6 @@
 #include <gui/screen_screen/screenPresenter.hpp>
 #include <touchgfx/widgets/Box.hpp>
 #include <touchgfx/containers/ScrollableContainer.hpp>
-#include <touchgfx/widgets/Image.hpp>
 
 class screenViewBase : public touchgfx::View<screenPresenter>
 {
@@ -28,7 +27,6 @@ protected:
      */
     touchgfx::Box __background;
     touchgfx::ScrollableContainer scrollableContainer1;
-    touchgfx::Image image1;
 
 private:
 

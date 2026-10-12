@@ -3,7 +3,6 @@
 /*********************************************************************************/
 #include <gui_generated/screen_screen/screenViewBase.hpp>
 #include <touchgfx/Color.hpp>
-#include <images/BitmapDatabase.hpp>
 
 screenViewBase::screenViewBase()
 {
@@ -11,14 +10,10 @@ screenViewBase::screenViewBase()
     __background.setColor(touchgfx::Color::getColorFromRGB(0, 0, 0));
     add(__background);
 
-    scrollableContainer1.setPosition(0, 0, 250, 535);
+    scrollableContainer1.setPosition(0, 9, 250, 535);
     scrollableContainer1.setScrollbarsColor(touchgfx::Color::getColorFromRGB(0, 0, 0));
     scrollableContainer1.setScrollbarsAlpha(255);
     add(scrollableContainer1);
-
-    image1.setXY(-364, -636);
-    image1.setBitmap(touchgfx::Bitmap(BITMAP_KAPO_ID));
-    add(image1);
 }
 
 screenViewBase::~screenViewBase()

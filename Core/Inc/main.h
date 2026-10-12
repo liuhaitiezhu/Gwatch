@@ -63,6 +63,7 @@ void Error_Handler(void);
 #define LCD_RST_GPIO_Port GPIOA
 #define LCD_TE_Pin GPIO_PIN_11
 #define LCD_TE_GPIO_Port GPIOA
+#define LCD_TE_EXTI_IRQn EXTI11_IRQn
 
 /* USER CODE BEGIN Private defines */
 

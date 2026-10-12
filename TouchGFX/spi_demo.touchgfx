@@ -7,6 +7,7 @@
           {
             "Type": "ScrollableContainer",
             "Name": "scrollableContainer1",
+            "Y": 9,
             "Width": 250,
             "Height": 535,
             "HorizontalScrollEnabled": true,
@@ -14,17 +15,13 @@
             "ScrollbarsVisibleOnPressed": true,
             "ScrollbarsAlpha": 255,
             "Components": []
-          },
-          {
-            "Type": "Image",
-            "Name": "image1",
-            "X": -364,
-            "Y": -636,
-            "Width": 1252,
-            "Height": 1668,
-            "RelativeFilename": "kapo.png"
           }
         ],
+        "Interactions": []
+      },
+      {
+        "Name": "Screen1",
+        "Components": [],
         "Interactions": []
       }
     ],

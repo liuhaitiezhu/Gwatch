@@ -53,11 +53,26 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
    assets/array/yuexinmao2.c
    assets/array/yuexinmao3.c
    assets/array/yuexinmao4.c
+
+    # FreeRTOS kernel and optional services
+    FreeRTOS/source/tasks.c
+    FreeRTOS/source/list.c
+    FreeRTOS/source/queue.c
+    FreeRTOS/source/event_groups.c
+    FreeRTOS/source/timers.c
+    FreeRTOS/source/stream_buffer.c
+
+    # Basic Cortex-M33 GCC port (configENABLE_MPU must be 0)
+    FreeRTOS/portable/port.c
+    FreeRTOS/portable/portasm.c
+    FreeRTOS/portable/heap_4.c
 )
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
+    FreeRTOS/include
+    FreeRTOS/portable
 )
 
 # Add project symbols (macros)
