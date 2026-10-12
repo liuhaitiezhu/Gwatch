@@ -23,15 +23,14 @@
 #include "spi.h"
 #include "usart.h"
 #include "gpio.h"
-#ifdef SPI_DEMO_USE_TOUCHGFX
 #include "app_touchgfx.h"
-#endif
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
 #include "bsp_ili9341_4line.h"
 #include "bsp_ft6336.h"
+#include "touchgfx_vsync.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -46,12 +45,6 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-#ifndef SPI_DEMO_USE_TOUCHGFX
-/* Also suppress CubeMX-generated GUI calls after regeneration. */
-#define MX_TouchGFX_Init() ((void)0)
-#define MX_TouchGFX_Process() ((void)0)
-#endif
-
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -60,7 +53,7 @@
 static const uint16_t screen_colors[] = {
   0x0000U, 0xF800U, 0x07E0U, 0x001FU, 0xFFE0U, 0x07FFU, 0xF81FU, 0xFFFFU
 }; /* Black, Red, Green, Blue, Yellow, Cyan, Magenta, White. */
-static uint8_t display_ready;
+static volatile uint8_t display_ready;
 static uint8_t color_current;
 static uint8_t color_target;
 static uint8_t color_inflight;
@@ -182,10 +175,10 @@ int main(void)
   MX_SPI1_Init();
   MX_CRC_Init();
   MX_I2C1_Init();
-#ifdef SPI_DEMO_USE_TOUCHGFX
   MX_TouchGFX_Init();
-#endif
   /* USER CODE BEGIN 2 */
+  /* Keep TE notifications disabled throughout the LCD reset/init sequence. */
+  HAL_NVIC_DisableIRQ(EXTI11_IRQn);
   printf("\r\nFT6336 swipe colors: USART1 baud=%lu\r\n",
          (unsigned long)huart1.Init.BaudRate);
   HAL_StatusTypeDef lcd_status = ILI9341_Init();
@@ -196,6 +189,12 @@ int main(void)
   /* Touch RESET shares PA8 with LCD: initialize after the LCD reset sequence. */
   FT6336_init();
   display_ready = lcd_status == HAL_OK; /* ILI9341_Init has already cleared the screen to black. */
+  if (display_ready)
+  {
+    __HAL_GPIO_EXTI_CLEAR_IT(LCD_TE_Pin);
+    HAL_NVIC_ClearPendingIRQ(EXTI11_IRQn);
+    HAL_NVIC_EnableIRQ(EXTI11_IRQn);
+  }
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -204,9 +203,7 @@ int main(void)
   {
     /* USER CODE END WHILE */
 
-#ifdef SPI_DEMO_USE_TOUCHGFX
     MX_TouchGFX_Process();
-#endif
     /* USER CODE BEGIN 3 */
     FT6336_scan_task();
     Display_Task();
@@ -271,12 +268,16 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-/* PB5 falling edge only notifies the main loop; no I2C or printf in the ISR. */
+/* PB5 notifies the touch task; PA11 notifies TouchGFX. No transfers in the ISR. */
 void HAL_GPIO_EXTI_Falling_Callback(uint16_t GPIO_Pin)
 {
   if (GPIO_Pin == GPIO_PIN_5)
   {
     FT6336_irq_fuc();
+  }
+  else if (GPIO_Pin == LCD_TE_Pin && display_ready)
+  {
+    TouchGFX_NotifyVSync();
   }
 }
 

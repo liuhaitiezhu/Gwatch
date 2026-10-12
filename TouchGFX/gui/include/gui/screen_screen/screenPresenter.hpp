@@ -8,7 +8,7 @@ using namespace touchgfx;
 
 class screenView;
 
-class screenPresenter : public touchgfx::Presenter, public ModelListener
+class screenPresenter : public touchgfx::Presenter, public ModelListener//单：加Public是继承的写法，这里是多重继承
 {
 public:
     screenPresenter(screenView& v);

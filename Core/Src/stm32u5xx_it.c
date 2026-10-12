@@ -213,6 +213,20 @@ void EXTI5_IRQHandler(void)
   /* USER CODE END EXTI5_IRQn 1 */
 }
 
+/**
+  * @brief This function handles EXTI Line11 interrupt.
+  */
+void EXTI11_IRQHandler(void)
+{
+  /* USER CODE BEGIN EXTI11_IRQn 0 */
+
+  /* USER CODE END EXTI11_IRQn 0 */
+  HAL_GPIO_EXTI_IRQHandler(LCD_TE_Pin);
+  /* USER CODE BEGIN EXTI11_IRQn 1 */
+
+  /* USER CODE END EXTI11_IRQn 1 */
+}
+
 /* USER CODE BEGIN 1 */
 
 /* USER CODE END 1 */

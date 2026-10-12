@@ -44,8 +44,7 @@ set(TouchGFX_Src
     ${CMAKE_SOURCE_DIR}/TouchGFX/generated/gui_generated/src/screen_screen/screenViewBase.cpp
     ${CMAKE_SOURCE_DIR}/TouchGFX/generated/images/src/BitmapDatabase.cpp
     ${CMAKE_SOURCE_DIR}/TouchGFX/generated/images/src/SVGDatabase.cpp
-    ${CMAKE_SOURCE_DIR}/TouchGFX/generated/images/src/__generated/image_alternate_theme_images_widgets_button_regular_height_50_large_rounded_action.cpp
-    ${CMAKE_SOURCE_DIR}/TouchGFX/generated/images/src/__generated/image_alternate_theme_images_widgets_button_regular_height_50_large_rounded_pressed.cpp
+    ${CMAKE_SOURCE_DIR}/TouchGFX/generated/images/src/image_kapo.cpp
     ${CMAKE_SOURCE_DIR}/TouchGFX/generated/texts/src/LanguageGb.cpp
     ${CMAKE_SOURCE_DIR}/TouchGFX/generated/texts/src/Texts.cpp
     ${CMAKE_SOURCE_DIR}/TouchGFX/generated/texts/src/TypedTextDatabase.cpp

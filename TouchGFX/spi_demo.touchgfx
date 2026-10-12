@@ -5,15 +5,24 @@
         "Name": "screen",
         "Components": [
           {
-            "Type": "Button",
-            "Name": "button1",
-            "X": -25,
-            "Y": 70,
-            "Width": 370,
-            "Height": 50,
-            "Pressed": "__generated\\alternate_theme_images_widgets_button_regular_height_50_large_rounded_pressed.png",
-            "Released": "__generated\\alternate_theme_images_widgets_button_regular_height_50_large_rounded_action.png",
-            "Preset": "alternate_theme\\presets\\button\\regular\\height_50\\large_rounded_action.json"
+            "Type": "ScrollableContainer",
+            "Name": "scrollableContainer1",
+            "Width": 250,
+            "Height": 535,
+            "HorizontalScrollEnabled": true,
+            "VerticalScrollEnabled": true,
+            "ScrollbarsVisibleOnPressed": true,
+            "ScrollbarsAlpha": 255,
+            "Components": []
+          },
+          {
+            "Type": "Image",
+            "Name": "image1",
+            "X": -364,
+            "Y": -636,
+            "Width": 1252,
+            "Height": 1668,
+            "RelativeFilename": "kapo.png"
           }
         ],
         "Interactions": []

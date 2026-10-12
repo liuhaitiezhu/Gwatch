@@ -24,7 +24,16 @@
 
 /* USER CODE BEGIN TouchGFXHAL.cpp */
 
+#include "touchgfx_vsync.h"
+#include <touchgfx/hal/OSWrappers.hpp>
+
 using namespace touchgfx;
+
+extern "C" void TouchGFX_NotifyVSync(void)
+{
+    HAL::getInstance()->vSync();
+    OSWrappers::signalVSync();
+}
 
 void TouchGFXHAL::initialize()
 {

@@ -192,6 +192,12 @@ HAL_StatusTypeDef ILI9341_Init(void)
     {
         status = ILI9341_Clear(BLACK);
     }
+    if (status == HAL_OK)
+    {
+        /* TEON, M=0: vertical blanking pulses only, one per display frame. */
+        const uint8_t te_mode = 0x00U;
+        status = lcd_command(0x35U, &te_mode, sizeof(te_mode));
+    }
     return status;
 }
 
