@@ -31,6 +31,7 @@
 #include "bsp_ili9341_4line.h"
 #include "bsp_ft6336.h"
 #include "touchgfx_vsync.h"
+#include "app_freertos.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -81,13 +82,7 @@ int _write(int file, char *ptr, int len)
 {
   (void)file;
 
-  if (HAL_UART_Transmit(&huart1, (uint8_t *)ptr, (uint16_t)len,
-                        HAL_MAX_DELAY) != HAL_OK)
-  {
-    return -1;
-  }
-
-  return len;
+  return App_UART_Write(ptr, len);
 }
 
 static void Display_Task(void)
@@ -138,6 +133,14 @@ static void Display_Task(void)
   color_current = color_inflight;
   printf("[display] color=%u/%u, RGB565=0x%04X\r\n", (unsigned int)(color_current + 1U),
          (unsigned int)count, (unsigned int)screen_colors[color_current]);
+}
+
+/* Preserve the existing loop as one task after starting FreeRTOS. */
+static void Application_Process(void)
+{
+  MX_TouchGFX_Process();
+  FT6336_scan_task();
+  Display_Task();
 }
 
 /* USER CODE END 0 */
@@ -195,6 +198,10 @@ int main(void)
     HAL_NVIC_ClearPendingIRQ(EXTI11_IRQn);
     HAL_NVIC_EnableIRQ(EXTI11_IRQn);
   }
+  printf("[rtos] SHT20 -> queue -> USART1, sample period=2000 ms\r\n");
+  /* Successful startup never returns; the original loop runs in its own task. */
+  (void)App_FreeRTOS_Start(Application_Process);
+  Error_Handler();
   /* USER CODE END 2 */
 
   /* Infinite loop */

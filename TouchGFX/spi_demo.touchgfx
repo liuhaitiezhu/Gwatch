@@ -3,20 +3,7 @@
     "Screens": [
       {
         "Name": "screen",
-        "Components": [
-          {
-            "Type": "ScrollableContainer",
-            "Name": "scrollableContainer1",
-            "Y": 9,
-            "Width": 250,
-            "Height": 535,
-            "HorizontalScrollEnabled": true,
-            "VerticalScrollEnabled": true,
-            "ScrollbarsVisibleOnPressed": true,
-            "ScrollbarsAlpha": 255,
-            "Components": []
-          }
-        ],
+        "Components": [],
         "Interactions": []
       },
       {
@@ -68,7 +55,7 @@
     "LandscapeSkinY": 0,
     "PortraitSkinX": 0,
     "PortraitSkinY": 0,
-    "DisplayOrientation": "Landscape",
+    "DisplayOrientation": "Portrait",
     "Family": "STM32U5",
     "SubFamily": "STM32U575/585",
     "Toolchain": "CMake",

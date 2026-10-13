@@ -1,6 +1,7 @@
 /* FT6336：抬起时确认点击，按住移动时识别一次单指滑动。 */
 #include "bsp_ft6336.h"
 #include "i2c.h"
+#include "bsp_i2c_bus.h"
 #include <stdint.h>
 #include <stdio.h>
 
@@ -48,7 +49,8 @@ static FT6336_Swipe pending_swipe;
 
 static uint8_t FT6336_read(uint8_t reg, uint8_t *data, uint16_t size);
 static uint8_t FT6336_write(uint8_t reg, uint8_t value);
-static void FT6336_report_error(const char *operation, uint8_t reg, HAL_StatusTypeDef status);
+static void FT6336_report_error(const char *operation, uint8_t reg,
+                                HAL_StatusTypeDef status, uint32_t error);
 static void FT6336_track_position(uint16_t x, uint16_t y, uint32_t now);
 static void FT6336_finish_touch(uint32_t now);
 
@@ -228,11 +230,18 @@ static void FT6336_finish_touch(uint32_t now)
 
 static uint8_t FT6336_read(uint8_t reg, uint8_t *data, uint16_t size)
 {
-    HAL_StatusTypeDef status = HAL_I2C_Mem_Read(
-        &hi2c1, FT6336_I2C_ADDRESS, reg, I2C_MEMADD_SIZE_8BIT, data, size, 100);
+    uint32_t error = HAL_I2C_ERROR_NONE;
+    HAL_StatusTypeDef status = BSP_I2C1_Lock(100U);
+    if (status == HAL_OK)
+    {
+        status = HAL_I2C_Mem_Read(
+            &hi2c1, FT6336_I2C_ADDRESS, reg, I2C_MEMADD_SIZE_8BIT, data, size, 100);
+        error = HAL_I2C_GetError(&hi2c1);
+        BSP_I2C1_Unlock();
+    }
     if (status != HAL_OK)
     {
-        FT6336_report_error("read", reg, status);
+        FT6336_report_error("read", reg, status, error);
         return 0U;
     }
     return 1U;
@@ -240,17 +249,25 @@ static uint8_t FT6336_read(uint8_t reg, uint8_t *data, uint16_t size)
 
 static uint8_t FT6336_write(uint8_t reg, uint8_t value)
 {
-    HAL_StatusTypeDef status = HAL_I2C_Mem_Write(
-        &hi2c1, FT6336_I2C_ADDRESS, reg, I2C_MEMADD_SIZE_8BIT, &value, 1U, 100);
+    uint32_t error = HAL_I2C_ERROR_NONE;
+    HAL_StatusTypeDef status = BSP_I2C1_Lock(100U);
+    if (status == HAL_OK)
+    {
+        status = HAL_I2C_Mem_Write(
+            &hi2c1, FT6336_I2C_ADDRESS, reg, I2C_MEMADD_SIZE_8BIT, &value, 1U, 100);
+        error = HAL_I2C_GetError(&hi2c1);
+        BSP_I2C1_Unlock();
+    }
     if (status != HAL_OK)
     {
-        FT6336_report_error("write", reg, status);
+        FT6336_report_error("write", reg, status, error);
         return 0U;
     }
     return 1U;
 }
 
-static void FT6336_report_error(const char *operation, uint8_t reg, HAL_StatusTypeDef status)
+static void FT6336_report_error(const char *operation, uint8_t reg,
+                                HAL_StatusTypeDef status, uint32_t error)
 {
     uint32_t now = HAL_GetTick();
     if (!task.error_reported ||
@@ -258,7 +275,7 @@ static void FT6336_report_error(const char *operation, uint8_t reg, HAL_StatusTy
     {
         printf("[touch] I2C %s failed: reg=0x%02X, status=%u, error=0x%08lX\r\n",
                operation, (unsigned int)reg, (unsigned int)status,
-               (unsigned long)HAL_I2C_GetError(&hi2c1));
+               (unsigned long)error);
         task.last_error_tick = now;
         task.error_reported = 1U;
     }

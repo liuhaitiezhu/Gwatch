@@ -6,7 +6,7 @@
 
 Screen1ViewBase::Screen1ViewBase()
 {
-    __background.setPosition(0, 0, 320, 240);
+    __background.setPosition(0, 0, 240, 320);
     __background.setColor(touchgfx::Color::getColorFromRGB(0, 0, 0));
     add(__background);
 }

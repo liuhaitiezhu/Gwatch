@@ -6,14 +6,9 @@
 
 screenViewBase::screenViewBase()
 {
-    __background.setPosition(0, 0, 320, 240);
+    __background.setPosition(0, 0, 240, 320);
     __background.setColor(touchgfx::Color::getColorFromRGB(0, 0, 0));
     add(__background);
-
-    scrollableContainer1.setPosition(0, 9, 250, 535);
-    scrollableContainer1.setScrollbarsColor(touchgfx::Color::getColorFromRGB(0, 0, 0));
-    scrollableContainer1.setScrollbarsAlpha(255);
-    add(scrollableContainer1);
 }
 
 screenViewBase::~screenViewBase()

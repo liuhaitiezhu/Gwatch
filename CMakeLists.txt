@@ -49,6 +49,9 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
     Core/Src/bsp_ili9341_4line.c
     Core/Src/bsp_ft6336.c
+    Core/Src/bsp_i2c_bus.c
+    Core/Src/bsp_sht20.c
+    Core/Src/app_freertos.c
    assets/array/yuexinmao1.c
    assets/array/yuexinmao2.c
    assets/array/yuexinmao3.c
