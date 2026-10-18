@@ -5,13 +5,17 @@
 #include "app_freertos.h"
 #include "task.h"
 #include "queue.h"
+#include "bsp_ft6336.h"
+#include "bsp_ili9341_4line.h"
+#include "app_touchgfx.h"
+#include "touchgfx_vsync.h"
 #include <assert.h>
 #include <setjmp.h>
 #include <stdio.h>
 #include <string.h>
 
 I2C_HandleTypeDef hi2c1;
-UART_HandleTypeDef huart1;
+UART_HandleTypeDef huart1 = {{115200U}};
 static int scheduler;
 static uint32_t tick_ms;
 static int bus_locked;
@@ -27,7 +31,17 @@ static HAL_StatusTypeDef register_write_result;
 static unsigned int reset_count;
 static unsigned int receives;
 static unsigned int register_writes;
-static unsigned int application_calls;
+static unsigned int gui_calls;
+static unsigned int touch_scans;
+static unsigned int touch_irqs;
+static unsigned int te_notifications;
+static unsigned int lcd_initializations;
+static unsigned int touch_initializations;
+static int te_irq_enabled;
+static int exti_cleared;
+static int nvic_cleared;
+static int active_task = -1;
+static HAL_StatusTypeDef lcd_result = HAL_OK;
 static uint32_t ipsr;
 static unsigned char items[8][256];
 static unsigned int queue_count;
@@ -75,14 +89,15 @@ static void ResetSensor(void)
 
 uint32_t __get_IPSR(void) { return ipsr; }
 uint32_t HAL_GetTick(void) { return tick_ms; }
-void HAL_Delay(uint32_t ms) { assert(!bus_locked); tick_ms += ms; }
+void HAL_Delay(uint32_t ms) { (void)ms; assert(!"Unexpected bare-metal delay"); }
 BaseType_t xTaskGetSchedulerState(void) { return scheduler; }
 TickType_t xTaskGetTickCount(void) { return tick_ms; }
 void vTaskDelay(TickType_t ticks)
 {
     assert(!bus_locked); /* Measurement conversion must not monopolize I2C1. */
+    assert(scheduler == taskSCHEDULER_RUNNING && ipsr == 0U);
     tick_ms += ticks;
-    if (ticks == 1U) { longjmp(stop_task, 1); } /* Stop application after one loop. */
+    if (ticks == 1U) { longjmp(stop_task, 1); } /* Stop display task after one loop. */
 }
 BaseType_t xTaskDelayUntil(TickType_t *previous, TickType_t interval)
 {
@@ -147,6 +162,7 @@ HAL_StatusTypeDef HAL_UART_Transmit(UART_HandleTypeDef *uart, const uint8_t *dat
                                    uint16_t length, uint32_t timeout)
 {
     assert(uart == &huart1 && timeout != 0U);
+    assert(scheduler == taskSCHEDULER_RUNNING && active_task == 0);
     assert(uart_length + length < sizeof(uart_output));
     memcpy(uart_output + uart_length, data, length);
     uart_length += length;
@@ -189,15 +205,65 @@ BaseType_t xTaskCreate(TaskFunction_t function, const char *name, size_t stack,
 void vTaskDelete(TaskHandle_t task) { assert(task != NULL); }
 void vTaskStartScheduler(void) { scheduler = taskSCHEDULER_RUNNING; longjmp(stop_task, 1); }
 void Error_Handler(void) { assert(!"Unexpected FreeRTOS failure hook"); }
-static void ApplicationProcess(void) { ++application_calls; }
+
+void HAL_NVIC_DisableIRQ(int irq)
+{
+    assert(irq == EXTI11_IRQn);
+    te_irq_enabled = 0;
+    exti_cleared = nvic_cleared = 0;
+}
+void Mock_ClearExti(uint16_t pin)
+{
+    assert(pin == GPIO_PIN_11 && !te_irq_enabled);
+    exti_cleared = 1;
+}
+void HAL_NVIC_ClearPendingIRQ(int irq)
+{
+    assert(irq == EXTI11_IRQn && !te_irq_enabled);
+    nvic_cleared = 1;
+}
+void HAL_NVIC_EnableIRQ(int irq)
+{
+    assert(irq == EXTI11_IRQn && exti_cleared && nvic_cleared);
+    assert(touch_initializations == lcd_initializations);
+    te_irq_enabled = 1;
+}
+HAL_StatusTypeDef ILI9341_Init(void)
+{
+    assert(scheduler == taskSCHEDULER_RUNNING && active_task == 2);
+    assert(!te_irq_enabled);
+    ++lcd_initializations;
+    return lcd_result;
+}
+void FT6336_init(void)
+{
+    assert(scheduler == taskSCHEDULER_RUNNING && active_task == 2);
+    assert(lcd_initializations == touch_initializations + 1U);
+    ++touch_initializations;
+}
+void FT6336_scan_task(void)
+{
+    assert(active_task == 2 && lcd_initializations == touch_initializations);
+    ++touch_scans;
+}
+void FT6336_irq_fuc(void) { ++touch_irqs; }
+void TouchGFX_NotifyVSync(void) { assert(ipsr != 0U); ++te_notifications; }
+void MX_TouchGFX_Process(void)
+{
+    assert(active_task == 2 && te_irq_enabled && touch_scans > gui_calls);
+    ++gui_calls;
+}
 static void RunTask(unsigned int task)
 {
+    active_task = (int)task;
     if (setjmp(stop_task) == 0) { tasks[task](NULL); }
+    active_task = -1;
 }
 
 int main(void)
 {
     SHT20_Data sample = {123, 456};
+    scheduler = taskSCHEDULER_RUNNING; /* Driver APIs now run in task context only. */
     ResetSensor();
     assert(SHT20_Read(NULL) == SHT20_ERROR_ARGUMENT);
     assert(SHT20_Init() == SHT20_OK);
@@ -245,10 +311,19 @@ int main(void)
     assert(SHT20_Init() == SHT20_ERROR_TIMEOUT && !bus_locked);
 
     ResetSensor();
-    assert(App_UART_Write("boot\r\n", 6) == 6 && uart_length == 6U);
+    scheduler = taskSCHEDULER_NOT_STARTED;
+    assert(App_UART_Write("boot\r\n", 6) == -1 && uart_length == 0U);
     uart_length = 0U;
-    if (setjmp(stop_task) == 0) { (void)App_FreeRTOS_Start(ApplicationProcess); }
+    if (setjmp(stop_task) == 0) { (void)App_FreeRTOS_Start(); }
     assert(task_count == 3U);
+    assert(App_FreeRTOS_Start() == HAL_ERROR); // A second startup is rejected.
+    assert(!te_irq_enabled && lcd_initializations == 0U && touch_initializations == 0U);
+    ipsr = 5U;
+    HAL_GPIO_EXTI_Falling_Callback(GPIO_PIN_11);
+    assert(te_notifications == 0U); // Ignore TE until the display task is ready.
+    HAL_GPIO_EXTI_Falling_Callback(GPIO_PIN_5);
+    assert(touch_irqs == 1U);
+    ipsr = 0U;
     RunTask(1U); /* Sensor measures and copies its stack-local message to queue. */
     assert(queue_count == 1U && uart_length == 0U);
     RunTask(0U); /* Printer receives the message after producer has returned. */
@@ -300,8 +375,22 @@ int main(void)
     ipsr = 5U;
     assert(App_UART_Write("isr", 3) == -1);
     ipsr = 0U;
+    lcd_result = HAL_ERROR;
     RunTask(2U);
-    assert(application_calls == 1U);
-    puts("PASS: SHT20 conversion/CRC/errors, bus release, task-to-queue-to-UART, recovery, log copying and backpressure");
+    assert(lcd_initializations == 1U && touch_initializations == 1U);
+    assert(touch_scans == 1U && gui_calls == 0U && !te_irq_enabled);
+    ipsr = 5U;
+    HAL_GPIO_EXTI_Falling_Callback(GPIO_PIN_11);
+    assert(te_notifications == 0U);
+    ipsr = 0U;
+    lcd_result = HAL_OK;
+    RunTask(2U);
+    assert(lcd_initializations == 2U && touch_initializations == 2U);
+    assert(touch_scans == 2U && gui_calls == 1U && te_irq_enabled);
+    ipsr = 5U;
+    HAL_GPIO_EXTI_Falling_Callback(GPIO_PIN_11);
+    assert(te_notifications == 1U);
+    ipsr = 0U;
+    puts("PASS: task-owned LCD/touch startup and TE gating, SHT20 CRC/errors, task-to-queue-to-UART, recovery, copying/backpressure");
     return 0;
 }

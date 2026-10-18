@@ -21,7 +21,7 @@ typedef struct
     uint32_t humidity_centi_pct;   /* 5678 means 56.78 %RH, clamped to 0..100%. */
 } SHT20_Data;
 
-/* I2C1 PB6/PB7. Call from one owning task; not from an ISR.
+/* I2C1 PB6/PB7. Call from one owning task after the scheduler has started.
  * Conversion waits block only that task and release the shared I2C bus. */
 SHT20_Status SHT20_Init(void);
 /* Publishes both values together only when both measurements pass CRC. */

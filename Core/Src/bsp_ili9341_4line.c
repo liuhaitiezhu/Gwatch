@@ -72,6 +72,46 @@ static HAL_StatusTypeDef lcd_begin_write(uint16_t x0, uint16_t y0, uint16_t x1, 
     return status;
 }
 
+HAL_StatusTypeDef ILI9341_WriteRectRGB565(uint16_t x, uint16_t y,
+                                        uint16_t width, uint16_t height,
+                                        const uint16_t *pixels, uint16_t stride)
+{
+    if (pixels == NULL || width == 0U || height == 0U || stride < width ||
+        (uint32_t)x + width > lcd_width || (uint32_t)y + height > lcd_height)
+    {
+        return HAL_ERROR;
+    }
+
+    HAL_StatusTypeDef status = lcd_begin_write(x, y, x + width - 1U, y + height - 1U);
+    if (status != HAL_OK)
+    {
+        return status;
+    }
+
+    uint16_t used = 0U;
+    for (uint16_t row = 0U; row < height; ++row)
+    {
+        const uint16_t *source = pixels + (uint32_t)row * stride;
+        for (uint16_t column = 0U; column < width; ++column)
+        {
+            const uint16_t color = source[column];
+            /* Cortex-M stores RGB565 little-endian; ILI9341 needs MSB first. */
+            fill_buffer[used++] = (uint8_t)(color >> 8);
+            fill_buffer[used++] = (uint8_t)color;
+            if (used == sizeof(fill_buffer))
+            {
+                status = lcd_send(fill_buffer, used);
+                if (status != HAL_OK)
+                {
+                    return status;
+                }
+                used = 0U;
+            }
+        }
+    }
+    return used != 0U ? lcd_send(fill_buffer, used) : HAL_OK;
+}
+
 HAL_StatusTypeDef ILI9341_Display_Dir(Screen_ShowDIR direction)
 {
     if (transfer_data != NULL)
@@ -147,7 +187,7 @@ HAL_StatusTypeDef ILI9341_Init(void)
         {0xC5, 2, {0x30, 0x30}},
         {0xC7, 1, {0xB7}},
         {0x3A, 1, {0x55}},
-        {0xB1, 2, {0x00, 0x10}},
+        {0xB1, 2, {0x00, 0x1F}}, /* Normal-mode scan rate: nominal 61 Hz. */
         {0xB6, 2, {0x0A, 0xA2}},
         {0xF2, 1, {0x00}},
         {0x26, 1, {0x01}},

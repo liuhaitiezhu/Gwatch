@@ -3,7 +3,8 @@
 
 #include "stm32u5xx_hal.h"
 
-/* Initialize once before starting the scheduler. Blocking, task-context API. */
+/* Initialize once before starting the scheduler. Lock/Unlock are task-only;
+ * pair Unlock with a successful Lock after the scheduler has started. */
 HAL_StatusTypeDef BSP_I2C1_InitMutex(void);
 HAL_StatusTypeDef BSP_I2C1_Lock(uint32_t timeout_ms);
 void BSP_I2C1_Unlock(void);

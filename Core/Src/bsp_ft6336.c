@@ -31,6 +31,9 @@ static struct
     uint8_t click_moved;
     uint16_t start_x;
     uint16_t start_y;
+    uint16_t x;
+    uint16_t y;
+    uint8_t pressed;
     uint32_t start_tick;
 } touch;
 
@@ -57,6 +60,7 @@ static void FT6336_finish_touch(uint32_t now);
 void FT6336_init(void)
 {
     touch.state = TOUCH_IDLE;
+    touch.pressed = 0U;
     task.poll_started = 0U;
     task.error_reported = 0U;
     touch_irq_pending = 0U;
@@ -116,6 +120,7 @@ void FT6336_scan_task(void)
 
     /* 只需触点数和第一个触点的 X/Y，即 0x02~0x06。 */
     uint8_t data[5];
+    touch.pressed = 0U; /* Failed, released, or invalid frames release the GUI. */
     if (!FT6336_read(FT6336_REG_TOUCH, data, sizeof(data)))
     {
         touch.state = TOUCH_IGNORED;
@@ -158,6 +163,9 @@ void FT6336_scan_task(void)
         touch.id = id;
         touch.start_x = (uint16_t)(((data[1] & 0x0FU) << 8) | data[2]);
         touch.start_y = (uint16_t)(((data[3] & 0x0FU) << 8) | data[4]);
+        touch.x = touch.start_x;
+        touch.y = touch.start_y;
+        touch.pressed = 1U;
         touch.start_tick = now;
         touch.click_moved = 0U;
         touch.state = TOUCH_TRACKING;
@@ -171,11 +179,25 @@ void FT6336_scan_task(void)
 
     uint16_t x = (uint16_t)(((data[1] & 0x0FU) << 8) | data[2]);
     uint16_t y = (uint16_t)(((data[3] & 0x0FU) << 8) | data[4]);
+    touch.x = x;
+    touch.y = y;
+    touch.pressed = event != 1U;
     FT6336_track_position(x, y, now);
     if (event == 1U)
     {
         FT6336_finish_touch(now);
     }
+}
+
+uint8_t FT6336_get_touch(uint16_t *x, uint16_t *y)
+{
+    if (x == NULL || y == NULL || !touch.pressed)
+    {
+        return 0U;
+    }
+    *x = touch.x;
+    *y = touch.y;
+    return 1U;
 }
 
 FT6336_Swipe FT6336_take_swipe(void)

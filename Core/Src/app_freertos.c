@@ -1,6 +1,11 @@
 #include "app_freertos.h"
 #include "bsp_i2c_bus.h"
 #include "bsp_sht20.h"
+#include "bsp_ft6336.h"
+#include "bsp_ili9341_4line.h"
+#include "app_touchgfx.h"
+#include "touchgfx_vsync.h"
+#include "main.h"
 #include "usart.h"
 #include "FreeRTOS.h"
 #include "queue.h"
@@ -41,7 +46,7 @@ typedef struct
 } UART_Message;
 
 static QueueHandle_t uart_queue;
-static void (*application_process)(void);
+static volatile uint8_t display_ready;
 
 static void SHT20_Task(void *argument)
 {
@@ -124,15 +129,36 @@ static void UART_PrintTask(void *argument)
     }
 }
 
-static void ApplicationTask(void *argument)
+static void DisplayTouchTask(void *argument)
 {
     (void)argument;
+    printf("\r\nTouchGFX + FT6336: USART1 baud=%lu\r\n",
+           (unsigned long)huart1.Init.BaudRate);
+    const HAL_StatusTypeDef lcd_status = ILI9341_Init();
+    if (lcd_status != HAL_OK)
+    {
+        printf("[display] initialization failed: status=%u\r\n", (unsigned int)lcd_status);
+    }
+    /* Both devices share RESET on PA8; initialize touch after the LCD reset. */
+    FT6336_init();
+    display_ready = lcd_status == HAL_OK;
+    if (display_ready)
+    {
+        __HAL_GPIO_EXTI_CLEAR_IT(LCD_TE_Pin);
+        HAL_NVIC_ClearPendingIRQ(EXTI11_IRQn);
+        HAL_NVIC_EnableIRQ(EXTI11_IRQn);
+    }
+    printf("[rtos] SHT20 -> queue -> USART1, sample period=%lu ms\r\n",
+           (unsigned long)SHT20_SAMPLE_PERIOD_MS);
     for (;;)
     {
-        application_process();
-        /* Keep the existing application polling; let the other tasks run.
-         * This blocks this task only, and does not put the MCU to sleep. */
-        vTaskDelay(1U);
+        /* Scan and read the touch cache in the same task as TouchGFX. */
+        FT6336_scan_task();
+        if (display_ready)
+        {
+            MX_TouchGFX_Process();
+        }
+        vTaskDelay(pdMS_TO_TICKS(1U));
     }
 }
 
@@ -145,15 +171,6 @@ int App_UART_Write(const char *data, int length)
     if (length == 0)
     {
         return 0;
-    }
-    if (xTaskGetSchedulerState() == taskSCHEDULER_NOT_STARTED)
-    {
-        if (length > UINT16_MAX)
-        {
-            return -1;
-        }
-        return HAL_UART_Transmit(&huart1, (const uint8_t *)data, (uint16_t)length,
-                                  UART_TIMEOUT_MS) == HAL_OK ? length : -1;
     }
     if (uart_queue == NULL || xTaskGetSchedulerState() != taskSCHEDULER_RUNNING)
     {
@@ -182,14 +199,15 @@ int App_UART_Write(const char *data, int length)
     return sent;
 }
 
-HAL_StatusTypeDef App_FreeRTOS_Start(void (*process)(void))
+HAL_StatusTypeDef App_FreeRTOS_Start(void)
 {
-    if (process == NULL || uart_queue != NULL ||
+    if (uart_queue != NULL ||
         xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED)
     {
         return HAL_ERROR;
     }
-    application_process = process;
+    /* TE is enabled by DisplayTouchTask only after LCD/touch initialization. */
+    HAL_NVIC_DisableIRQ(EXTI11_IRQn);
     if (BSP_I2C1_InitMutex() != HAL_OK)
     {
         return HAL_ERROR;
@@ -205,7 +223,7 @@ HAL_StatusTypeDef App_FreeRTOS_Start(void (*process)(void))
     TaskHandle_t app_task = NULL;
     if (xTaskCreate(UART_PrintTask, "uart_print", 768U, NULL, 2U, &uart_task) == pdPASS &&
         xTaskCreate(SHT20_Task, "sht20", 512U, NULL, 2U, &sensor_task) == pdPASS &&
-        xTaskCreate(ApplicationTask, "display_touch", 2048U, NULL, 1U, &app_task) == pdPASS)
+        xTaskCreate(DisplayTouchTask, "display_touch", 2048U, NULL, 1U, &app_task) == pdPASS)
     {
         vTaskStartScheduler();
         /* A successful start never returns; treat any return as fatal. */
@@ -217,6 +235,19 @@ HAL_StatusTypeDef App_FreeRTOS_Start(void (*process)(void))
     vQueueDelete(uart_queue);
     uart_queue = NULL;
     return HAL_ERROR;
+}
+
+/* Hardware IRQs notify the owning task; never perform I2C/SPI in the ISR. */
+void HAL_GPIO_EXTI_Falling_Callback(uint16_t GPIO_Pin)
+{
+    if (GPIO_Pin == GPIO_PIN_5)
+    {
+        FT6336_irq_fuc();
+    }
+    else if (GPIO_Pin == LCD_TE_Pin && display_ready)
+    {
+        TouchGFX_NotifyVSync();
+    }
 }
 
 void vApplicationStackOverflowHook(TaskHandle_t task, char *name)

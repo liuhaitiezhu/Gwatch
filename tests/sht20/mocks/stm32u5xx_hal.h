@@ -4,7 +4,16 @@
 #include <stdint.h>
 typedef enum { HAL_OK, HAL_ERROR, HAL_BUSY, HAL_TIMEOUT } HAL_StatusTypeDef;
 typedef struct { uint32_t unused; } I2C_HandleTypeDef;
-typedef struct { uint32_t unused; } UART_HandleTypeDef;
+typedef struct { struct { uint32_t BaudRate; } Init; } UART_HandleTypeDef;
+#define GPIO_PIN_5 (1U << 5)
+#define GPIO_PIN_11 (1U << 11)
+#define EXTI11_IRQn 11
+void HAL_NVIC_DisableIRQ(int irq);
+void HAL_NVIC_ClearPendingIRQ(int irq);
+void HAL_NVIC_EnableIRQ(int irq);
+void Mock_ClearExti(uint16_t pin);
+#define __HAL_GPIO_EXTI_CLEAR_IT(pin) Mock_ClearExti(pin)
+void HAL_GPIO_EXTI_Falling_Callback(uint16_t pin);
 #define I2C_MEMADD_SIZE_8BIT 1U
 uint32_t __get_IPSR(void);
 uint32_t HAL_GetTick(void);

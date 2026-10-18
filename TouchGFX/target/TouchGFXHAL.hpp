@@ -101,13 +101,12 @@ public:
      *
      * @brief This function is called whenever the framework has performed a complete draw.
      *
-     * This specialization is only in place to keep compilers happy. Base impl. will call the
-     * Rect version.
+     * Record a full-screen update for the same deferred transfer as the Rect version.
      * @see HAL::flushFrameBuffer
      */
     virtual void flushFrameBuffer()
     {
-        TouchGFXGeneratedHAL::flushFrameBuffer();
+        flushFrameBuffer(touchgfx::Rect(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT));
     }
 
     /**
@@ -115,7 +114,7 @@ public:
      *
      * @brief This function is called whenever the framework has performed a partial draw.
      *
-     *        This function is called whenever the framework has performed a partial draw.
+     *        Collect the updated area; endFrame waits for a fresh TE before sending it.
      *
      * @param rect The area of the screen that has been drawn, expressed in absolute coordinates.
      *
@@ -160,6 +159,11 @@ protected:
      * @param [in,out] adr New frame buffer address.
      */
     virtual void setTFTFrameBuffer(uint16_t* adr);
+
+private:
+    // Full framebuffer stays valid while endFrame blocks. One bounding rectangle
+    // batches all partial draws into one transfer and one TE wait per frame.
+    touchgfx::Rect pendingDisplayRect;
 };
 
 /* USER CODE END TouchGFXHAL.hpp */

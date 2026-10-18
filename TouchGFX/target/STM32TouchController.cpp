@@ -23,28 +23,32 @@
 /* USER CODE BEGIN STM32TouchController */
 
 #include <STM32TouchController.hpp>
+#include <touchgfx/hal/HAL.hpp>
+#include "bsp_ft6336.h"
 
 void STM32TouchController::init()
 {
-    /**
-     * Initialize touch controller and driver
-     *
-     */
+    // DisplayTouchTask initializes FT6336 after ILI9341: both share RESET on PA8.
+    // TouchGFX initializes earlier, so do not reset or initialize FT6336 here.
 }
 
 bool STM32TouchController::sampleTouch(int32_t& x, int32_t& y)
 {
-    /**
-     * By default sampleTouch returns false,
-     * return true if a touch has been detected, otherwise false.
-     *
-     * Coordinates are passed to the caller by reference by x and y.
-     *
-     * This function is called by the TouchGFX framework.
-     * By default sampleTouch is called every tick, this can be adjusted by HAL::setTouchSampleRate(int8_t);
-     *
-     */
-    return false;
+    // DisplayTouchTask owns FT6336_scan_task(). Read its cached
+    // state here so TouchGFX does not start a second I2C transaction.
+    uint16_t touch_x;
+    uint16_t touch_y;
+    if (!FT6336_get_touch(&touch_x, &touch_y) ||
+        touch_x >= touchgfx::HAL::DISPLAY_WIDTH ||
+        touch_y >= touchgfx::HAL::DISPLAY_HEIGHT)
+    {
+        return false;
+    }
+
+    // The current 240x320 portrait display uses the native touch coordinates.
+    x = touch_x;
+    y = touch_y;
+    return true;
 }
 
 /* USER CODE END STM32TouchController */

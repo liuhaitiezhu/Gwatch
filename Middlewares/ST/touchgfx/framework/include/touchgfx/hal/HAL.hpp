@@ -684,7 +684,7 @@ public:
      */
     virtual void backPorchExited()
     {
-        swapFrameBuffers();
+        swapFrameBuffers();//实际上什么都没做
         tick();
     }
 

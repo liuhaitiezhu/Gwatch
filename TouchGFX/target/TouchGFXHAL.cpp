@@ -25,14 +25,50 @@
 /* USER CODE BEGIN TouchGFXHAL.cpp */
 
 #include "touchgfx_vsync.h"
+#include "bsp_ili9341_4line.h"
+#include "main.h"
+#include "FreeRTOS.h"
+#include "semphr.h"
+#include "task.h"
 #include <touchgfx/hal/OSWrappers.hpp>
 
 using namespace touchgfx;
+
+namespace
+{
+StaticSemaphore_t displayTeStorage;
+SemaphoreHandle_t displayTeSemaphore = NULL;
+const uint32_t DISPLAY_TE_TIMEOUT_MS = 100U;
+
+bool waitForFreshDisplayTe()
+{
+    if (displayTeSemaphore == NULL || __get_IPSR() != 0U ||
+        xTaskGetSchedulerState() != taskSCHEDULER_RUNNING)
+    {
+        return false;
+    }
+
+    // This binary semaphore is separate from the GUI's vsync_sem flag.
+    // Discard any TE received before rendering finished, then block this task
+    // until the next edge. An edge between these two calls remains available.
+    (void)xSemaphoreTake(displayTeSemaphore, 0U);
+    return xSemaphoreTake(displayTeSemaphore, pdMS_TO_TICKS(DISPLAY_TE_TIMEOUT_MS)) == pdTRUE;
+}
+}
 
 extern "C" void TouchGFX_NotifyVSync(void)
 {
     HAL::getInstance()->vSync();
     OSWrappers::signalVSync();
+
+    // PA11 falling-edge ISR, priority 5: wake the sender without doing SPI here.
+    if (displayTeSemaphore != NULL &&
+        xTaskGetSchedulerState() == taskSCHEDULER_RUNNING)
+    {
+        BaseType_t higherPriorityTaskWoken = pdFALSE;
+        (void)xSemaphoreGiveFromISR(displayTeSemaphore, &higherPriorityTaskWoken);
+        portYIELD_FROM_ISR(higherPriorityTaskWoken);
+    }
 }
 
 void TouchGFXHAL::initialize()
@@ -43,6 +79,13 @@ void TouchGFXHAL::initialize()
     // and implement the needed functionality here.
     // Please note, HAL::initialize() must be called to initialize the framework.
 
+    displayTeSemaphore = xSemaphoreCreateBinaryStatic(&displayTeStorage);
+    if (displayTeSemaphore == NULL)
+    {
+        Error_Handler();
+        return;
+    }
+    pendingDisplayRect = Rect();
     TouchGFXGeneratedHAL::initialize();
 }
 
@@ -85,16 +128,13 @@ void TouchGFXHAL::setTFTFrameBuffer(uint16_t* address)
  */
 void TouchGFXHAL::flushFrameBuffer(const touchgfx::Rect& rect)
 {
-    // Calling parent implementation of flushFrameBuffer(const touchgfx::Rect& rect).
-    //
-    // To overwrite the generated implementation, omit the call to the parent function
-    // and implement the needed functionality here.
-    // Please note, HAL::flushFrameBuffer(const touchgfx::Rect& rect) must
-    // be called to notify the touchgfx framework that flush has been performed.
-    // To calculate the start address of rect,
-    // use advanceFrameBufferToRect(uint8_t* fbPtr, const touchgfx::Rect& rect)
-    // defined in TouchGFXGeneratedHAL.cpp
+    const Rect dirty = rect & Rect(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT);
+    if (!dirty.isEmpty())
+    {
+        pendingDisplayRect.expandToFit(dirty);
+    }
 
+    // Parent records rendering progress; physical transfer happens in endFrame.
     TouchGFXGeneratedHAL::flushFrameBuffer(rect);
 }
 
@@ -159,12 +199,51 @@ void TouchGFXHAL::enableLCDControllerInterrupt()
 
 bool TouchGFXHAL::beginFrame()
 {
-    return TouchGFXGeneratedHAL::beginFrame();
+    const bool canRender = TouchGFXGeneratedHAL::beginFrame();
+    if (canRender)
+    {
+        pendingDisplayRect = Rect();
+    }
+    return canRender;
 }
 
 void TouchGFXHAL::endFrame()
 {
+    // Finish the renderer's queued work and GUI VSYNC bookkeeping first.
     TouchGFXGeneratedHAL::endFrame();
+    if (pendingDisplayRect.isEmpty())
+    {
+        return;
+    }
+    lockUnlockFrameBuffer();
+
+    const uint16_t strideBytes = lcd().framebufferStride();
+    const uint16_t* framebuffer = getClientFrameBuffer();
+    if (framebuffer == NULL || (strideBytes & 1U) != 0U ||
+        strideBytes / 2U < DISPLAY_WIDTH)
+    {
+        Error_Handler();
+        return;
+    }
+
+    const Rect dirty = pendingDisplayRect;
+    const uint16_t stridePixels = strideBytes / 2U;
+    const uint16_t* pixels = framebuffer + (uint32_t)dirty.y * stridePixels + dirty.x;
+    if (!waitForFreshDisplayTe())
+    {
+        // Do not silently send unsynchronized pixels if TE stops arriving.
+        Error_Handler();
+        return;
+    }
+    if (ILI9341_WriteRectRGB565(dirty.x, dirty.y, dirty.width, dirty.height,
+                              pixels, stridePixels) != HAL_OK)
+    {
+        Error_Handler();
+        return;
+    }
+    pendingDisplayRect = Rect();
+    // Single GUI task + blocking transfer: no subsequent draw can overwrite
+    // these pixels until all SPI bytes have been sent and endFrame returns.
 }
 
 /* USER CODE END TouchGFXHAL.cpp */

@@ -7,6 +7,7 @@ $executable = Join-Path $outputDirectory 'test_sht20.exe'
 & $Compiler '-std=c11' '-Wall' '-Wextra' '-Werror' '-O2' `
     '-I' (Join-Path $PSScriptRoot 'mocks') `
     '-I' (Join-Path $projectRoot 'Core/Inc') `
+    '-I' (Join-Path $projectRoot 'TouchGFX/App') `
     (Join-Path $PSScriptRoot 'test_sht20.c') `
     (Join-Path $projectRoot 'Core/Src/bsp_sht20.c') `
     (Join-Path $projectRoot 'Core/Src/app_freertos.c') `

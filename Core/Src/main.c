@@ -27,10 +27,6 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include <stdio.h>
-#include "bsp_ili9341_4line.h"
-#include "bsp_ft6336.h"
-#include "touchgfx_vsync.h"
 #include "app_freertos.h"
 /* USER CODE END Includes */
 
@@ -51,14 +47,6 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-static const uint16_t screen_colors[] = {
-  0x0000U, 0xF800U, 0x07E0U, 0x001FU, 0xFFE0U, 0x07FFU, 0xF81FU, 0xFFFFU
-}; /* Black, Red, Green, Blue, Yellow, Cyan, Magenta, White. */
-static volatile uint8_t display_ready;
-static uint8_t color_current;
-static uint8_t color_target;
-static uint8_t color_inflight;
-static uint8_t color_rendering;
 
 /* USER CODE END PV */
 
@@ -83,64 +71,6 @@ int _write(int file, char *ptr, int len)
   (void)file;
 
   return App_UART_Write(ptr, len);
-}
-
-static void Display_Task(void)
-{
-  FT6336_Swipe swipe = FT6336_take_swipe();
-  if (!display_ready)
-  {
-    return;
-  }
-  const uint8_t count = sizeof(screen_colors) / sizeof(screen_colors[0]);
-  if (swipe == FT6336_SWIPE_LEFT || swipe == FT6336_SWIPE_UP)
-  {
-    color_target = (uint8_t)((color_target + 1U) % count);
-  }
-  else if (swipe == FT6336_SWIPE_RIGHT || swipe == FT6336_SWIPE_DOWN)
-  {
-    color_target = (uint8_t)((color_target + count - 1U) % count);
-  }
-
-  if (!color_rendering && color_target != color_current)
-  {
-    HAL_StatusTypeDef status = LCD_ColorStart(screen_colors[color_target]);
-    if (status != HAL_OK)
-    {
-      color_target = color_current;
-      printf("[display] color start failed: status=%u\r\n", (unsigned int)status);
-      return;
-    }
-    color_inflight = color_target;
-    color_rendering = 1U;
-  }
-  if (!color_rendering)
-  {
-    return;
-  }
-  HAL_StatusTypeDef status = LCD_TransferTask();
-  if (status == HAL_BUSY)
-  {
-    return;
-  }
-  color_rendering = 0U;
-  if (status != HAL_OK)
-  {
-    color_target = color_current;
-    printf("[display] color transfer failed: status=%u\r\n", (unsigned int)status);
-    return;
-  }
-  color_current = color_inflight;
-  printf("[display] color=%u/%u, RGB565=0x%04X\r\n", (unsigned int)(color_current + 1U),
-         (unsigned int)count, (unsigned int)screen_colors[color_current]);
-}
-
-/* Preserve the existing loop as one task after starting FreeRTOS. */
-static void Application_Process(void)
-{
-  MX_TouchGFX_Process();
-  FT6336_scan_task();
-  Display_Task();
 }
 
 /* USER CODE END 0 */
@@ -180,41 +110,15 @@ int main(void)
   MX_I2C1_Init();
   MX_TouchGFX_Init();
   /* USER CODE BEGIN 2 */
-  /* Keep TE notifications disabled throughout the LCD reset/init sequence. */
-  HAL_NVIC_DisableIRQ(EXTI11_IRQn);
-  printf("\r\nFT6336 swipe colors: USART1 baud=%lu\r\n",
-         (unsigned long)huart1.Init.BaudRate);
-  HAL_StatusTypeDef lcd_status = ILI9341_Init();
-  if (lcd_status != HAL_OK)
-  {
-    printf("[display] initialization failed: status=%u\r\n", (unsigned int)lcd_status);
-  }
-  /* Touch RESET shares PA8 with LCD: initialize after the LCD reset sequence. */
-  FT6336_init();
-  display_ready = lcd_status == HAL_OK; /* ILI9341_Init has already cleared the screen to black. */
-  if (display_ready)
-  {
-    __HAL_GPIO_EXTI_CLEAR_IT(LCD_TE_Pin);
-    HAL_NVIC_ClearPendingIRQ(EXTI11_IRQn);
-    HAL_NVIC_EnableIRQ(EXTI11_IRQn);
-  }
-  printf("[rtos] SHT20 -> queue -> USART1, sample period=2000 ms\r\n");
-  /* Successful startup never returns; the original loop runs in its own task. */
-  (void)App_FreeRTOS_Start(Application_Process);
+  /* All application work belongs to FreeRTOS tasks. Success never returns. */
+  (void)App_FreeRTOS_Start();
   Error_Handler();
   /* USER CODE END 2 */
 
-  /* Infinite loop */
+  /* No application polling loop: FreeRTOS owns runtime scheduling. */
   /* USER CODE BEGIN WHILE */
-  while (1)
-  {
-    /* USER CODE END WHILE */
-
-  MX_TouchGFX_Process();
-    /* USER CODE BEGIN 3 */
-    FT6336_scan_task();
-    Display_Task();
-  }
+  /* USER CODE END WHILE */
+  /* USER CODE BEGIN 3 */
   /* USER CODE END 3 */
 }
 
@@ -275,19 +179,6 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-/* PB5 notifies the touch task; PA11 notifies TouchGFX. No transfers in the ISR. */
-void HAL_GPIO_EXTI_Falling_Callback(uint16_t GPIO_Pin)
-{
-  if (GPIO_Pin == GPIO_PIN_5)
-  {
-    FT6336_irq_fuc();
-  }
-  else if (GPIO_Pin == LCD_TE_Pin && display_ready)
-  {
-    TouchGFX_NotifyVSync();
-  }
-}
-
 /* USER CODE END 4 */
 
 /**

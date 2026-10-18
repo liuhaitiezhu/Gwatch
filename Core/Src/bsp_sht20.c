@@ -13,15 +13,9 @@
 
 static void DelayMs(uint32_t milliseconds)
 {
-    if (xTaskGetSchedulerState() == taskSCHEDULER_RUNNING)
-    {
-        /* Add a tick so a call just before the next tick cannot wait too little. */
-        vTaskDelay(pdMS_TO_TICKS(milliseconds) + 1U);
-    }
-    else
-    {
-        HAL_Delay(milliseconds);
-    }
+    /* Task-only driver. Add a tick so a call just before the next tick cannot
+     * make the sensor's minimum conversion/reset wait too short. */
+    vTaskDelay(pdMS_TO_TICKS(milliseconds) + 1U);
 }
 
 static SHT20_Status ConvertStatus(HAL_StatusTypeDef status)

@@ -18,16 +18,8 @@ HAL_StatusTypeDef BSP_I2C1_InitMutex(void)
 
 HAL_StatusTypeDef BSP_I2C1_Lock(uint32_t timeout_ms)
 {
-    if (__get_IPSR() != 0U)
-    {
-        return HAL_ERROR;
-    }
-    /* Peripheral initialization is single-threaded before the scheduler. */
-    if (xTaskGetSchedulerState() == taskSCHEDULER_NOT_STARTED)
-    {
-        return HAL_OK;
-    }
-    if (i2c1_mutex == NULL || xTaskGetSchedulerState() != taskSCHEDULER_RUNNING)
+    if (__get_IPSR() != 0U || i2c1_mutex == NULL ||
+        xTaskGetSchedulerState() != taskSCHEDULER_RUNNING)
     {
         return HAL_ERROR;
     }
@@ -37,10 +29,7 @@ HAL_StatusTypeDef BSP_I2C1_Lock(uint32_t timeout_ms)
 
 void BSP_I2C1_Unlock(void)
 {
-    if (xTaskGetSchedulerState() == taskSCHEDULER_RUNNING)
-    {
-        (void)xSemaphoreGive(i2c1_mutex);
-    }
+    (void)xSemaphoreGive(i2c1_mutex);
 }
 
 static HAL_StatusTypeDef WaitForFlag(uint32_t flag, uint32_t start,
