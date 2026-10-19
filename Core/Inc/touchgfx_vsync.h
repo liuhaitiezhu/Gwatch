@@ -5,10 +5,9 @@
 extern "C" {
 #endif
 
-/* Call from the LCD TE falling-edge ISR after TouchGFX initialization.
- * The IRQ must have a FreeRTOS-safe priority (PA11 uses priority 5).
- * Notifies the GUI and releases the separate pixel-transfer TE semaphore. */
-void TouchGFX_NotifyVSync(void);
+/* GUI task only. Call after consuming a periodic software-timer notification,
+ * before MX_TouchGFX_Process(). This schedules a frame without sending pixels. */
+void TouchGFX_TimerTick(void);
 
 #ifdef __cplusplus
 }

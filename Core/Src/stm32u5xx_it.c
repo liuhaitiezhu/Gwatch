@@ -39,7 +39,8 @@
  * the native FreeRTOS port supplies the actual exception handlers. */
 #pragma weak SVC_Handler
 #pragma weak PendSV_Handler
-#pragma weak SysTick_Handler
+#pragma weak SysTick_Handler  //weak掉这些函数，使用freertos定义的对应函数
+//使用systick作为freertos的节拍中断，使用pendsv作为freertos的上下文切换中断
 
 /* USER CODE END PD */
 

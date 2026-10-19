@@ -25,6 +25,8 @@ public:
      */
     virtual void deactivate();
 
+    virtual void temperatureUpdated(int32_t temperatureCentiC, bool valid) override;
+
     virtual ~screenPresenter() {}
 
 private:

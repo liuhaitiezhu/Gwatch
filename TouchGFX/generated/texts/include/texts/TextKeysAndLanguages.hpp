@@ -12,6 +12,8 @@ enum LANGUAGES
 
 enum TEXTS
 {
+    T___SINGLEUSE_OYPR,
+    T___SINGLEUSE_41NP,
     NUMBER_OF_TEXT_KEYS
 };
 

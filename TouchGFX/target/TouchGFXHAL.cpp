@@ -27,48 +27,14 @@
 #include "touchgfx_vsync.h"
 #include "bsp_ili9341_4line.h"
 #include "main.h"
-#include "FreeRTOS.h"
-#include "semphr.h"
-#include "task.h"
 #include <touchgfx/hal/OSWrappers.hpp>
 
 using namespace touchgfx;
 
-namespace
-{
-StaticSemaphore_t displayTeStorage;
-SemaphoreHandle_t displayTeSemaphore = NULL;
-const uint32_t DISPLAY_TE_TIMEOUT_MS = 100U;
-
-bool waitForFreshDisplayTe()
-{
-    if (displayTeSemaphore == NULL || __get_IPSR() != 0U ||
-        xTaskGetSchedulerState() != taskSCHEDULER_RUNNING)
-    {
-        return false;
-    }
-
-    // This binary semaphore is separate from the GUI's vsync_sem flag.
-    // Discard any TE received before rendering finished, then block this task
-    // until the next edge. An edge between these two calls remains available.
-    (void)xSemaphoreTake(displayTeSemaphore, 0U);
-    return xSemaphoreTake(displayTeSemaphore, pdMS_TO_TICKS(DISPLAY_TE_TIMEOUT_MS)) == pdTRUE;
-}
-}
-
-extern "C" void TouchGFX_NotifyVSync(void)
+extern "C" void TouchGFX_TimerTick(void)
 {
     HAL::getInstance()->vSync();
     OSWrappers::signalVSync();
-
-    // PA11 falling-edge ISR, priority 5: wake the sender without doing SPI here.
-    if (displayTeSemaphore != NULL &&
-        xTaskGetSchedulerState() == taskSCHEDULER_RUNNING)
-    {
-        BaseType_t higherPriorityTaskWoken = pdFALSE;
-        (void)xSemaphoreGiveFromISR(displayTeSemaphore, &higherPriorityTaskWoken);
-        portYIELD_FROM_ISR(higherPriorityTaskWoken);
-    }
 }
 
 void TouchGFXHAL::initialize()
@@ -79,12 +45,6 @@ void TouchGFXHAL::initialize()
     // and implement the needed functionality here.
     // Please note, HAL::initialize() must be called to initialize the framework.
 
-    displayTeSemaphore = xSemaphoreCreateBinaryStatic(&displayTeStorage);
-    if (displayTeSemaphore == NULL)
-    {
-        Error_Handler();
-        return;
-    }
     pendingDisplayRect = Rect();
     TouchGFXGeneratedHAL::initialize();
 }
@@ -229,12 +189,6 @@ void TouchGFXHAL::endFrame()
     const Rect dirty = pendingDisplayRect;
     const uint16_t stridePixels = strideBytes / 2U;
     const uint16_t* pixels = framebuffer + (uint32_t)dirty.y * stridePixels + dirty.x;
-    if (!waitForFreshDisplayTe())
-    {
-        // Do not silently send unsynchronized pixels if TE stops arriving.
-        Error_Handler();
-        return;
-    }
     if (ILI9341_WriteRectRGB565(dirty.x, dirty.y, dirty.width, dirty.height,
                               pixels, stridePixels) != HAL_OK)
     {

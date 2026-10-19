@@ -10,6 +10,7 @@
 #include "FreeRTOS.h"
 #include "queue.h"
 #include "task.h"
+#include "timers.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -17,6 +18,7 @@
 #define UART_QUEUE_LENGTH      8U
 #define UART_TEXT_SIZE         128U
 #define UART_TIMEOUT_MS        100U
+#define GUI_FRAME_PERIOD_MS    16U
 
 typedef enum
 {
@@ -46,7 +48,11 @@ typedef struct
 } UART_Message;
 
 static QueueHandle_t uart_queue;
+static QueueHandle_t temperature_queue;
 static volatile uint8_t display_ready;
+static uint32_t display_gui_polls;
+static StaticTimer_t display_timer_storage;
+static volatile uint32_t display_timer_count;
 
 static void SHT20_Task(void *argument)
 {
@@ -75,6 +81,13 @@ static void SHT20_Task(void *argument)
         }
         message.payload.sensor.status = status;
         message.payload.sensor.tick_ms = HAL_GetTick();
+        const App_TemperatureReading reading = {
+            .temperature_centi_c = status == SHT20_OK
+                                       ? message.payload.sensor.data.temperature_centi_c : 0,
+            .valid = status == SHT20_OK ? 1U : 0U
+        };
+        /* GUI gets its own copy; a slow display never blocks the sampler. */
+        (void)xQueueOverwrite(temperature_queue, &reading);
         (void)xQueueSend(uart_queue, &message, portMAX_DELAY);
         (void)xTaskDelayUntil(&last_wake, pdMS_TO_TICKS(SHT20_SAMPLE_PERIOD_MS));
     }
@@ -129,6 +142,13 @@ static void UART_PrintTask(void *argument)
     }
 }
 
+static void DisplayTickTimerCallback(TimerHandle_t timer)
+{
+    ++display_timer_count;
+    /* Timer-service task only wakes the GUI owner; it never touches the HAL. */
+    (void)xTaskNotifyGive((TaskHandle_t)pvTimerGetTimerID(timer));
+}
+
 static void DisplayTouchTask(void *argument)
 {
     (void)argument;
@@ -139,27 +159,60 @@ static void DisplayTouchTask(void *argument)
     {
         printf("[display] initialization failed: status=%u\r\n", (unsigned int)lcd_status);
     }
-    /* Both devices share RESET on PA8; initialize touch after the LCD reset. */
+    /* Initialize touch after the display setup has completed. */
     FT6336_init();
     display_ready = lcd_status == HAL_OK;
     if (display_ready)
     {
-        __HAL_GPIO_EXTI_CLEAR_IT(LCD_TE_Pin);
-        HAL_NVIC_ClearPendingIRQ(EXTI11_IRQn);
-        HAL_NVIC_EnableIRQ(EXTI11_IRQn);
+        TimerHandle_t timer = xTimerCreateStatic("gui_tick",
+            pdMS_TO_TICKS(GUI_FRAME_PERIOD_MS), pdTRUE,
+            xTaskGetCurrentTaskHandle(), DisplayTickTimerCallback, &display_timer_storage);
+        if (timer == NULL || xTimerStart(timer, 0U) != pdPASS)
+        {
+            printf("[display] GUI timer start failed\r\n");
+            Error_Handler();
+            return;
+        }
+        printf("[display] tick=timer period=%lu ms\r\n",
+               (unsigned long)GUI_FRAME_PERIOD_MS);
     }
     printf("[rtos] SHT20 -> queue -> USART1, sample period=%lu ms\r\n",
            (unsigned long)SHT20_SAMPLE_PERIOD_MS);
+    TickType_t last_display_report = xTaskGetTickCount();
     for (;;)
     {
         /* Scan and read the touch cache in the same task as TouchGFX. */
         FT6336_scan_task();
         if (display_ready)
         {
+            /* Coalesce elapsed periods after a slow draw; no catch-up burst. */
+            if (ulTaskNotifyTake(pdTRUE, 0U) != 0U)
+            {
+                TouchGFX_TimerTick();
+            }
             MX_TouchGFX_Process();
+        }
+        const TickType_t now = xTaskGetTickCount();
+        if (now - last_display_report >= pdMS_TO_TICKS(SHT20_SAMPLE_PERIOD_MS))
+        {
+            printf("[display] ready=%u tick=timer TIMER=%lu GUI=%lu\r\n",
+                   (unsigned int)display_ready, (unsigned long)display_timer_count,
+                   (unsigned long)display_gui_polls);
+            last_display_report = now;
         }
         vTaskDelay(pdMS_TO_TICKS(1U));
     }
+}
+
+int App_Temperature_TryRead(App_TemperatureReading *reading)
+{
+    if (reading == NULL || temperature_queue == NULL || __get_IPSR() != 0U ||
+        xTaskGetSchedulerState() != taskSCHEDULER_RUNNING)
+    {
+        return 0;
+    }
+    ++display_gui_polls;
+    return xQueueReceive(temperature_queue, reading, 0U) == pdPASS;
 }
 
 int App_UART_Write(const char *data, int length)
@@ -201,13 +254,16 @@ int App_UART_Write(const char *data, int length)
 
 HAL_StatusTypeDef App_FreeRTOS_Start(void)
 {
-    if (uart_queue != NULL ||
+    if (uart_queue != NULL || temperature_queue != NULL ||
         xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED)
     {
         return HAL_ERROR;
     }
-    /* TE is enabled by DisplayTouchTask only after LCD/touch initialization. */
+    /* Leave CubeMX-generated setup intact, but release unused PA11 and its IRQ.
+     * This also keeps the pin inactive after regeneration from the unchanged .ioc. */
     HAL_NVIC_DisableIRQ(EXTI11_IRQn);
+    HAL_GPIO_DeInit(GPIOA, GPIO_PIN_11);
+    HAL_NVIC_ClearPendingIRQ(EXTI11_IRQn);
     if (BSP_I2C1_InitMutex() != HAL_OK)
     {
         return HAL_ERROR;
@@ -215,6 +271,14 @@ HAL_StatusTypeDef App_FreeRTOS_Start(void)
     uart_queue = xQueueCreate(UART_QUEUE_LENGTH, sizeof(UART_Message));
     if (uart_queue == NULL)
     {
+        return HAL_ERROR;
+    }
+    /* One element is required by xQueueOverwrite: only the newest result matters. */
+    temperature_queue = xQueueCreate(1U, sizeof(App_TemperatureReading));
+    if (temperature_queue == NULL)
+    {
+        vQueueDelete(uart_queue);
+        uart_queue = NULL;
         return HAL_ERROR;
     }
     /* Stack sizes are 32-bit words: 3 KiB, 2 KiB, and 8 KiB respectively. */
@@ -232,6 +296,8 @@ HAL_StatusTypeDef App_FreeRTOS_Start(void)
     if (uart_task != NULL) { vTaskDelete(uart_task); }
     if (sensor_task != NULL) { vTaskDelete(sensor_task); }
     if (app_task != NULL) { vTaskDelete(app_task); }
+    vQueueDelete(temperature_queue);
+    temperature_queue = NULL;
     vQueueDelete(uart_queue);
     uart_queue = NULL;
     return HAL_ERROR;
@@ -243,10 +309,6 @@ void HAL_GPIO_EXTI_Falling_Callback(uint16_t GPIO_Pin)
     if (GPIO_Pin == GPIO_PIN_5)
     {
         FT6336_irq_fuc();
-    }
-    else if (GPIO_Pin == LCD_TE_Pin && display_ready)
-    {
-        TouchGFX_NotifyVSync();
     }
 }
 

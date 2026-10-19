@@ -8,6 +8,7 @@
 #include <mvp/View.hpp>
 #include <gui/screen_screen/screenPresenter.hpp>
 #include <touchgfx/widgets/Box.hpp>
+#include <touchgfx/widgets/TextAreaWithWildcard.hpp>
 
 class screenViewBase : public touchgfx::View<screenPresenter>
 {
@@ -25,6 +26,13 @@ protected:
      * Member Declarations
      */
     touchgfx::Box __background;
+    touchgfx::TextAreaWithOneWildcard textArea1;
+
+    /*
+     * Wildcard Buffers
+     */
+    static const uint16_t TEXTAREA1_SIZE = 10;
+    touchgfx::Unicode::UnicodeChar textArea1Buffer[TEXTAREA1_SIZE];
 
 private:
 

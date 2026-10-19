@@ -11,6 +11,7 @@ public:
     virtual ~screenView() {}
     virtual void setupScreen();
     virtual void tearDownScreen();
+    void updateTemperature(int32_t temperatureCentiC, bool valid);
 protected:
 };
 

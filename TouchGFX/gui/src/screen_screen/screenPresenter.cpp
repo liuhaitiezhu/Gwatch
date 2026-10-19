@@ -9,10 +9,15 @@ screenPresenter::screenPresenter(screenView& v)
 
 void screenPresenter::activate()
 {
-
+    view.updateTemperature(model->getTemperatureCentiC(), model->hasValidTemperature());
 }
 
 void screenPresenter::deactivate()
 {
 
+}
+
+void screenPresenter::temperatureUpdated(int32_t temperatureCentiC, bool valid)
+{
+    view.updateTemperature(temperatureCentiC, valid);
 }

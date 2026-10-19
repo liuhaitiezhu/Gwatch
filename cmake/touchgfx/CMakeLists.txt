@@ -21,8 +21,6 @@ set(TouchGFX_Include_Dirs
 set(TouchGFX_Src
     ${CMAKE_SOURCE_DIR}/TouchGFX/gui/src/common/FrontendApplication.cpp
     ${CMAKE_SOURCE_DIR}/TouchGFX/gui/src/model/Model.cpp
-    ${CMAKE_SOURCE_DIR}/TouchGFX/gui/src/screen1_screen/Screen1Presenter.cpp
-    ${CMAKE_SOURCE_DIR}/TouchGFX/gui/src/screen1_screen/Screen1View.cpp
     ${CMAKE_SOURCE_DIR}/TouchGFX/gui/src/screen_screen/screenPresenter.cpp
     ${CMAKE_SOURCE_DIR}/TouchGFX/gui/src/screen_screen/screenView.cpp
     ${CMAKE_SOURCE_DIR}/TouchGFX/generated/fonts/src/ApplicationFontProvider.cpp
@@ -43,7 +41,6 @@ set(TouchGFX_Src
     ${CMAKE_SOURCE_DIR}/TouchGFX/generated/fonts/src/UnmappedDataFont.cpp
     ${CMAKE_SOURCE_DIR}/TouchGFX/generated/fonts/src/VectorFontRendererBuffers.cpp
     ${CMAKE_SOURCE_DIR}/TouchGFX/generated/gui_generated/src/common/FrontendApplicationBase.cpp
-    ${CMAKE_SOURCE_DIR}/TouchGFX/generated/gui_generated/src/screen1_screen/Screen1ViewBase.cpp
     ${CMAKE_SOURCE_DIR}/TouchGFX/generated/gui_generated/src/screen_screen/screenViewBase.cpp
     ${CMAKE_SOURCE_DIR}/TouchGFX/generated/images/src/BitmapDatabase.cpp
     ${CMAKE_SOURCE_DIR}/TouchGFX/generated/images/src/SVGDatabase.cpp

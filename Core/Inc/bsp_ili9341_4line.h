@@ -18,6 +18,13 @@ typedef enum {
 HAL_StatusTypeDef ILI9341_Init(void);
 HAL_StatusTypeDef ILI9341_Display_Dir(Screen_ShowDIR direction);
 HAL_StatusTypeDef ILI9341_Clear(uint16_t color);
+/* Single-byte serial status commands: 0x0A..0x0F and 0xDA..0xDC.
+ * No dummy byte is discarded for these 8-bit SPI reads (datasheet p.38).
+ * Temporarily uses /32 (5 MHz at current SYSCLK) for this read transaction,
+ * then restores the original prescaler on success or error; writes stay 40 MHz.
+ * Display task only, with SDO/MISO connected; HAL_OK means transfer completed,
+ * not that the external device or its returned data has been validated. */
+HAL_StatusTypeDef ILI9341_ReadRegister8(uint8_t command, uint8_t *value);
 HAL_StatusTypeDef LCD_ColorStart(uint16_t color); /* Starts a full-screen RGB565 color fill. */
 
 /* Coordinates are inclusive and must be inside the current screen. */
@@ -31,9 +38,7 @@ HAL_StatusTypeDef ILI9341_WriteRectRGB565(uint16_t x, uint16_t y,
                                         uint16_t width, uint16_t height,
                                         const uint16_t *pixels, uint16_t stride);
 
-#define LCD_PICTURE_COUNT 4U
-HAL_StatusTypeDef LCD_PictureStart(uint8_t index); /* Starts one 240x320 RGB565 picture. */
-HAL_StatusTypeDef LCD_TransferTask(void);         /* Sends one color/image block; HAL_BUSY means more remain. */
+HAL_StatusTypeDef LCD_TransferTask(void); /* Sends one color block; HAL_BUSY means more remain. */
 
 #ifdef __cplusplus
 }

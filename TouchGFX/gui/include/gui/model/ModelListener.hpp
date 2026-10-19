@@ -14,6 +14,7 @@ public:
     {
         model = m;
     }
+    virtual void temperatureUpdated(int32_t, bool) {}
 protected:
     Model* model;
 };

@@ -3,12 +3,27 @@
     "Screens": [
       {
         "Name": "screen",
-        "Components": [],
-        "Interactions": []
-      },
-      {
-        "Name": "Screen1",
-        "Components": [],
+        "Components": [
+          {
+            "Type": "TextArea",
+            "Name": "textArea1",
+            "Y": 136,
+            "Width": 233,
+            "Height": 24,
+            "TextId": "__SingleUse_41NP",
+            "TextRotation": "0",
+            "Color": {
+              "Red": 73,
+              "Green": 230,
+              "Blue": 41
+            },
+            "Wildcard1": {
+              "TextId": "__SingleUse_OYPR",
+              "UseBuffer": true,
+              "BufferSize": 10
+            }
+          }
+        ],
         "Interactions": []
       }
     ],

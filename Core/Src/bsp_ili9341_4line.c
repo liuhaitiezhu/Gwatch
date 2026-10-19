@@ -13,15 +13,6 @@ static uint16_t lcd_height;
 static uint8_t fill_buffer[LCD_TRANSFER_BYTES];
 static const uint8_t *transfer_data;
 static uint32_t transfer_offset;
-static uint8_t transfer_repeat;
-
-extern const unsigned char gImage_yuexinmao1[LCD_FRAME_BYTES];
-extern const unsigned char gImage_yuexinmao2[LCD_FRAME_BYTES];
-extern const unsigned char gImage_yuexinmao3[LCD_FRAME_BYTES];
-extern const unsigned char gImage_yuexinmao4[LCD_FRAME_BYTES];
-static const uint8_t *const lcd_pictures[LCD_PICTURE_COUNT] = {
-    gImage_yuexinmao1, gImage_yuexinmao2, gImage_yuexinmao3, gImage_yuexinmao4
-};
 
 static HAL_StatusTypeDef lcd_send(const uint8_t *data, uint16_t size)
 {
@@ -37,6 +28,49 @@ static HAL_StatusTypeDef lcd_command(uint8_t command, const uint8_t *data, uint1
     {
         status = lcd_send(data, size);
     }
+    return status;
+}
+
+HAL_StatusTypeDef ILI9341_ReadRegister8(uint8_t command, uint8_t *value)
+{
+    if (value == NULL || !((command >= 0x0AU && command <= 0x0FU) ||
+                          (command >= 0xDAU && command <= 0xDCU)))
+    {
+        return HAL_ERROR;
+    }
+    if (transfer_data != NULL)
+    {
+        return HAL_BUSY;
+    }
+    if (hspi1.Instance == NULL)
+    {
+        return HAL_ERROR;
+    }
+    if ((hspi1.Instance->CR1 & SPI_CR1_SPE) != 0U)
+    {
+        return HAL_BUSY;
+    }
+    /* User-authorized diagnostic reads only: 160 MHz / 32 = 5 MHz.
+     * Preserve the actual write prescaler; hspi1.Init remains at /4 (40 MHz).
+     * This task owns SPI and HAL closes each blocking transfer with SPE clear. */
+    const uint32_t write_prescaler = hspi1.Instance->CFG1 & SPI_CFG1_MBR;
+    hspi1.Instance->CFG1 = (hspi1.Instance->CFG1 & ~SPI_CFG1_MBR) |
+                           SPI_BAUDRATEPRESCALER_32;
+    HAL_StatusTypeDef status = lcd_command(command, NULL, 0U);
+    if (status == HAL_OK)
+    {
+        const uint8_t clocks = 0x00U;
+        uint8_t received = 0U;
+        /* These single-byte commands return D7..D0 on the next eight clocks.
+         * The parallel-interface dummy read is not an extra SPI byte. */
+        status = HAL_SPI_TransmitReceive(&hspi1, &clocks, &received, 1U, LCD_TIMEOUT_MS);
+        if (status == HAL_OK)
+        {
+            *value = received;
+        }
+    }
+    /* Also restore after a command or receive error, before any GUI write. */
+    hspi1.Instance->CFG1 = (hspi1.Instance->CFG1 & ~SPI_CFG1_MBR) | write_prescaler;
     return status;
 }
 
@@ -152,7 +186,6 @@ HAL_StatusTypeDef LCD_ColorStart(uint16_t color)
     }
     transfer_data = fill_buffer;
     transfer_offset = 0U;
-    transfer_repeat = 1U;
     return HAL_OK;
 }
 
@@ -232,28 +265,6 @@ HAL_StatusTypeDef ILI9341_Init(void)
     {
         status = ILI9341_Clear(BLACK);
     }
-    if (status == HAL_OK)
-    {
-        /* TEON, M=0: vertical blanking pulses only, one per display frame. */
-        const uint8_t te_mode = 0x00U;
-        status = lcd_command(0x35U, &te_mode, sizeof(te_mode));
-    }
-    return status;
-}
-
-HAL_StatusTypeDef LCD_PictureStart(uint8_t index)
-{
-    if (index >= LCD_PICTURE_COUNT || lcd_width != 240U || lcd_height != 320U)
-    {
-        return HAL_ERROR;
-    }
-    HAL_StatusTypeDef status = lcd_begin_write(0U, 0U, lcd_width - 1U, lcd_height - 1U);
-    if (status == HAL_OK)
-    {
-        transfer_data = lcd_pictures[index];
-        transfer_offset = 0U;
-        transfer_repeat = 0U;
-    }
     return status;
 }
 
@@ -265,8 +276,7 @@ HAL_StatusTypeDef LCD_TransferTask(void)
     }
     uint32_t remaining = LCD_FRAME_BYTES - transfer_offset;
     uint16_t size = remaining > LCD_TRANSFER_BYTES ? LCD_TRANSFER_BYTES : (uint16_t)remaining;
-    const uint8_t *data = transfer_repeat ? transfer_data : transfer_data + transfer_offset;
-    HAL_StatusTypeDef status = lcd_send(data, size);
+    HAL_StatusTypeDef status = lcd_send(transfer_data, size);
     if (status != HAL_OK)
     {
         transfer_data = NULL;

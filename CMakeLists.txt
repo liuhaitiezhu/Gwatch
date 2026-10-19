@@ -52,10 +52,6 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Core/Src/bsp_i2c_bus.c
     Core/Src/bsp_sht20.c
     Core/Src/app_freertos.c
-   assets/array/yuexinmao1.c
-   assets/array/yuexinmao2.c
-   assets/array/yuexinmao3.c
-   assets/array/yuexinmao4.c
 
     # FreeRTOS kernel and optional services
     FreeRTOS/source/tasks.c
