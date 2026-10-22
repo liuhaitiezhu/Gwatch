@@ -49,7 +49,7 @@ typedef struct
 
 static QueueHandle_t uart_queue;
 static QueueHandle_t temperature_queue;
-static volatile uint8_t display_ready;
+static volatile bool display_ready;
 static uint32_t display_gui_polls;
 static StaticTimer_t display_timer_storage;
 static volatile uint32_t display_timer_count;
@@ -59,7 +59,7 @@ static void SHT20_Task(void *argument)
     (void)argument;
     TickType_t last_wake = xTaskGetTickCount();
     uint32_t sequence = 0U;
-    uint8_t initialized = 0U;
+    bool initialized = false;
     for (;;)
     {
         UART_Message message = {0};
@@ -77,14 +77,14 @@ static void SHT20_Task(void *argument)
         }
         if (status != SHT20_OK)
         {
-            initialized = 0U; /* Retry initialization on the next sample. */
+            initialized = false; /* Retry initialization on the next sample. */
         }
         message.payload.sensor.status = status;
         message.payload.sensor.tick_ms = HAL_GetTick();
         const App_TemperatureReading reading = {
             .temperature_centi_c = status == SHT20_OK
                                        ? message.payload.sensor.data.temperature_centi_c : 0,
-            .valid = status == SHT20_OK ? 1U : 0U
+            .valid = (status == SHT20_OK)
         };
         /* GUI gets its own copy; a slow display never blocks the sampler. */
         (void)xQueueOverwrite(temperature_queue, &reading);
@@ -204,12 +204,12 @@ static void DisplayTouchTask(void *argument)
     }
 }
 
-int App_Temperature_TryRead(App_TemperatureReading *reading)
+bool App_Temperature_TryRead(App_TemperatureReading *reading)
 {
     if (reading == NULL || temperature_queue == NULL || __get_IPSR() != 0U ||
         xTaskGetSchedulerState() != taskSCHEDULER_RUNNING)
     {
-        return 0;
+        return false;
     }
     ++display_gui_polls;
     return xQueueReceive(temperature_queue, reading, 0U) == pdPASS;

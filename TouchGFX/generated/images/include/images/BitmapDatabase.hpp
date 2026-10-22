@@ -6,6 +6,8 @@
 #include <touchgfx/hal/Types.hpp>
 #include <touchgfx/Bitmap.hpp>
 
+const uint16_t BITMAP_BUSHI_ID = 0;
+const uint16_t BITMAP_LACHANG_ID = 1;
 
 namespace BitmapDatabase
 {

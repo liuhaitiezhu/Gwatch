@@ -1,0 +1,104 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Gwatch: Debug (build + flash)",
+            "type": "stlinkgdbtarget",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/Debug/spi_demo.elf",
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "Gwatch: Build Debug",
+            "preBuild": "",
+            "gdb": "${env:LOCALAPPDATA}/stm32cube/bundles/gnu-gdb-for-stm32/14.3.1+st.2/bin/arm-none-eabi-gdb.exe",
+            "serverExe": "ST-LINK_gdbserver.exe",
+            "serverCwd": "${env:LOCALAPPDATA}/stm32cube/bundles/stlink-gdbserver/7.14.0+st.2/bin",
+            "serverCubeProgPath": "${env:LOCALAPPDATA}/stm32cube/bundles/programmer/2.23.0/bin",
+            "deviceName": "STM32U575RIT6",
+            "deviceCore": "Cortex-M33",
+            "deviceTrustzone": "TZ-disabled",
+            "serverInterface": "SWD",
+            "serverInterfaceFrequency": "1000",
+            "serverReset": "Software system reset",
+            "serverPort": "61234",
+            "serverVerify": true,
+            "serverRtos": { "enabled": false },
+            "serverSemihosting": { "enabled": false },
+            "liveWatch": { "enabled": true, "samplesPerSecond": "4" },
+            "runEntry": "main",
+            "imagesAndSymbols": [
+                {
+                    "imageFileName": "${workspaceFolder}/build/Debug/spi_demo.elf",
+                    "symbolFileName": "${workspaceFolder}/build/Debug/spi_demo.elf"
+                }
+            ]
+        },
+        {
+            "name": "Gwatch: Release (build + flash)",
+            "type": "stlinkgdbtarget",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/Release/spi_demo.elf",
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "Gwatch: Build Release",
+            "preBuild": "",
+            "gdb": "${env:LOCALAPPDATA}/stm32cube/bundles/gnu-gdb-for-stm32/14.3.1+st.2/bin/arm-none-eabi-gdb.exe",
+            "serverExe": "ST-LINK_gdbserver.exe",
+            "serverCwd": "${env:LOCALAPPDATA}/stm32cube/bundles/stlink-gdbserver/7.14.0+st.2/bin",
+            "serverCubeProgPath": "${env:LOCALAPPDATA}/stm32cube/bundles/programmer/2.23.0/bin",
+            "deviceName": "STM32U575RIT6",
+            "deviceCore": "Cortex-M33",
+            "deviceTrustzone": "TZ-disabled",
+            "serverInterface": "SWD",
+            "serverInterfaceFrequency": "1000",
+            "serverReset": "Software system reset",
+            "serverPort": "61234",
+            "serverVerify": true,
+            "serverRtos": { "enabled": false },
+            "serverSemihosting": { "enabled": false },
+            "liveWatch": { "enabled": true, "samplesPerSecond": "4" },
+            "runEntry": "",
+            "imagesAndSymbols": [
+                {
+                    "imageFileName": "${workspaceFolder}/build/Release/spi_demo.elf",
+                    "symbolFileName": "${workspaceFolder}/build/Release/spi_demo.elf"
+                }
+            ]
+        },
+        {
+            "name": "OpenOCD Debug",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/Debug/spi_demo.elf",
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "Gwatch: Build Debug",
+            "stopAtEntry": true,
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "miDebuggerPath": "${env:LOCALAPPDATA}/stm32cube/bundles/gnu-gdb-for-stm32/14.3.1+st.2/bin/arm-none-eabi-gdb.exe",
+            "miDebuggerServerAddress": "localhost:3333",
+            "debugServerPath": "${config:openocd-tools.path}",
+            "debugServerArgs": "-f \"${workspaceFolder}/openocd.cfg\" -c \"adapter speed 1000\" -c \"gdb port 3333\" -c \"tcl port disabled\" -c \"telnet port disabled\"",
+            "serverStarted": "Listening on port 3333 for gdb connections",
+            "filterStdout": true,
+            "filterStderr": true,
+            "serverLaunchTimeout": 20000,
+            "postRemoteConnectCommands": [
+                {
+                    "description": "Reset and halt the STM32 before downloading",
+                    "text": "monitor reset halt",
+                    "ignoreFailures": false
+                },
+                {
+                    "description": "Download the Debug firmware",
+                    "text": "-target-download",
+                    "ignoreFailures": false
+                },
+                {
+                    "description": "Reset to the firmware entry point",
+                    "text": "monitor reset halt",
+                    "ignoreFailures": false
+                }
+            ],
+            "launchCompleteCommand": "exec-continue"
+        }
+    ]
+}

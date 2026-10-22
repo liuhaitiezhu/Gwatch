@@ -2,6 +2,7 @@
 #ifndef BSP_FT6336_H
 #define BSP_FT6336_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -25,9 +26,9 @@ void FT6336_irq_fuc(void);
 /* 显示触摸任务持续调用：快速抬起确认点击；按住移动识别一次滑动，失败无动作。 */
 void FT6336_scan_task(void);
 
-/* Read the latest scan without I2C access. Returns 1 while pressed, including
+/* Read the latest scan without I2C access. Returns true while pressed, including
  * after a swipe was reported. Call from the same task as FT6336_scan_task(). */
-uint8_t FT6336_get_touch(uint16_t *x, uint16_t *y);
+bool FT6336_get_touch(uint16_t *x, uint16_t *y);
 
 /* 显示触摸任务取走一次滑动结果；无新滑动时返回 NONE。 */
 FT6336_Swipe FT6336_take_swipe(void);

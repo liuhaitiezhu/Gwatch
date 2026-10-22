@@ -3,6 +3,7 @@
 /*********************************************************************************/
 #include <gui_generated/screen_screen/screenViewBase.hpp>
 #include <touchgfx/Color.hpp>
+#include <images/BitmapDatabase.hpp>
 #include <texts/TextKeysAndLanguages.hpp>
 
 screenViewBase::screenViewBase()
@@ -11,7 +12,17 @@ screenViewBase::screenViewBase()
     __background.setColor(touchgfx::Color::getColorFromRGB(0, 0, 0));
     add(__background);
 
-    textArea1.setPosition(0, 136, 233, 24);
+    scrollableContainer1.setPosition(0, 0, 240, 320);
+    scrollableContainer1.enableHorizontalScroll(false);
+    scrollableContainer1.setScrollbarsColor(touchgfx::Color::getColorFromRGB(242, 10, 10));
+    scrollableContainer1.setScrollbarsAlpha(255);
+    image1.setXY(0, 0);
+    image1.setBitmap(touchgfx::Bitmap(BITMAP_LACHANG_ID));
+    scrollableContainer1.add(image1);
+
+    add(scrollableContainer1);
+
+    textArea1.setPosition(4, 30, 233, 24);
     textArea1.setColor(touchgfx::Color::getColorFromRGB(73, 230, 41));
     textArea1.setLinespacing(0);
     Unicode::snprintf(textArea1Buffer, TEXTAREA1_SIZE, "%s", touchgfx::TypedText(T___SINGLEUSE_OYPR).getText());

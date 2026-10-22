@@ -635,6 +635,12 @@
 /* ARMv7-M and ARMv8-M port Specific Configuration definitions. ***************/
 /******************************************************************************/
 
+/* End a task's debugger call stack at a null return address. The default
+ * prvTaskExitError address makes GDB unwind repeated frames and hang while
+ * refreshing local variables after a function returns. Tasks must still use
+ * vTaskDelete( NULL ) to exit; returning would now fault instead of asserting. */
+#define configTASK_RETURN_ADDRESS             0
+
 /* Set configCHECK_HANDLER_INSTALLATION to 1 to enable additional asserts to
  * verify that the application has correctly installed FreeRTOS interrupt
  * handlers.

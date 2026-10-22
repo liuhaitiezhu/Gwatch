@@ -5,6 +5,7 @@
 #include <stddef.h>
 
 #define LCD_TRANSFER_BYTES 1024U
+#define LCD_PIXEL_TRANSFER_MAX 4096U
 #define LCD_TIMEOUT_MS 20U
 #define LCD_FRAME_BYTES (240U * 320U * 2U)
 
@@ -106,6 +107,41 @@ static HAL_StatusTypeDef lcd_begin_write(uint16_t x0, uint16_t y0, uint16_t x1, 
     return status;
 }
 
+static HAL_StatusTypeDef lcd_send_pixels(const uint16_t *pixels, uint32_t count)
+{
+    if ((hspi1.Instance->CR1 & SPI_CR1_SPE) != 0U)
+    {
+        return HAL_BUSY;
+    }
+
+    const uint32_t data_size = hspi1.Init.DataSize;
+    const uint32_t register_data_size = hspi1.Instance->CFG1 & SPI_CFG1_DSIZE;
+    hspi1.Init.DataSize = SPI_DATASIZE_16BIT;
+    MODIFY_REG(hspi1.Instance->CFG1, SPI_CFG1_DSIZE, SPI_DATASIZE_16BIT);
+
+    /* A 16-bit, MSB-first SPI frame sends a native RGB565 pixel in wire order.
+     * Keep each blocking transfer short; Size counts pixels in this mode. */
+    HAL_StatusTypeDef status = HAL_OK;
+    while (count != 0U)
+    {
+        const uint16_t chunk = count > LCD_PIXEL_TRANSFER_MAX ?
+                                   LCD_PIXEL_TRANSFER_MAX : (uint16_t)count;
+        status = HAL_SPI_Transmit(&hspi1, (const uint8_t *)pixels, chunk, LCD_TIMEOUT_MS);
+        if (status != HAL_OK)
+        {
+            break;
+        }
+        pixels += chunk;
+        count -= chunk;
+    }
+
+    /* HAL closes blocking transfers on success and failure. Restore command
+     * framing on every path without changing the SPI clock or other settings. */
+    MODIFY_REG(hspi1.Instance->CFG1, SPI_CFG1_DSIZE, register_data_size);
+    hspi1.Init.DataSize = data_size;
+    return status;
+}
+
 HAL_StatusTypeDef ILI9341_WriteRectRGB565(uint16_t x, uint16_t y,
                                         uint16_t width, uint16_t height,
                                         const uint16_t *pixels, uint16_t stride)
@@ -120,6 +156,11 @@ HAL_StatusTypeDef ILI9341_WriteRectRGB565(uint16_t x, uint16_t y,
     if (status != HAL_OK)
     {
         return status;
+    }
+
+    if (stride == width)
+    {
+        return lcd_send_pixels(pixels, (uint32_t)width * height);
     }
 
     uint16_t used = 0U;

@@ -1,6 +1,7 @@
 #ifndef APP_FREERTOS_H
 #define APP_FREERTOS_H
 
+#include <stdbool.h>
 #include "stm32u5xx_hal.h"
 
 #ifdef __cplusplus
@@ -10,7 +11,7 @@ extern "C" {
 typedef struct
 {
     int32_t temperature_centi_c;
-    uint8_t valid;
+    bool valid;
 } App_TemperatureReading;
 
 /* Creates shared resources and three tasks, then starts the scheduler.
@@ -23,8 +24,8 @@ HAL_StatusTypeDef App_FreeRTOS_Start(void);
 int App_UART_Write(const char *data, int length);
 
 /* GUI task only: consume the latest sample without waiting.
- * Returns 1 for a new result (including sensor failure), otherwise 0. */
-int App_Temperature_TryRead(App_TemperatureReading *reading);
+ * Returns true for a new result (including sensor failure), otherwise false. */
+bool App_Temperature_TryRead(App_TemperatureReading *reading);
 
 #ifdef __cplusplus
 }

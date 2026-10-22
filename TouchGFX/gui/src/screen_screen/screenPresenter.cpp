@@ -7,12 +7,12 @@ screenPresenter::screenPresenter(screenView& v)
 
 }
 
-void screenPresenter::activate()
+void screenPresenter::activate()//每次切换到这个screen就执行一次activate里面的函数
 {
     view.updateTemperature(model->getTemperatureCentiC(), model->hasValidTemperature());
 }
 
-void screenPresenter::deactivate()
+void screenPresenter::deactivate()//这个screen结束的时候调用
 {
 
 }

@@ -2,8 +2,14 @@
     "configurations": [
         {
             "name": "STM32",
-            "compileCommands": "${workspaceFolder}/build/Debug/compile_commands.json",
-            "intelliSenseMode": "windows-msvc-x64",
+            "compileCommands": "${workspaceFolder}/build/Release/compile_commands.json",
+            "compilerPath": "C:/Users/1/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/arm-none-eabi-g++.exe",
+            "compilerArgs": [
+                "-mcpu=cortex-m33",
+                "-mfpu=fpv5-sp-d16",
+                "-mfloat-abi=hard"
+            ],
+            "intelliSenseMode": "windows-gcc-arm",
             "cStandard": "c17",
             "cppStandard": "gnu++20"
         }

@@ -5,7 +5,7 @@
 
 class ModelListener
 {
-public:
+public://在类内部定义的函数默认就是inline的，也就是内联的，下面的函数没有内容，没有对应的.cpp文件也是可以的
     ModelListener() : model(0) {}
     
     virtual ~ModelListener() {}
