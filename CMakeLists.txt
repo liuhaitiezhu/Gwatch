@@ -28,6 +28,10 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 project(${CMAKE_PROJECT_NAME})
 message("Build type: " ${CMAKE_BUILD_TYPE})
 
+# PA12 has the core-board C20 capacitor. Keep the proven slow GPIO backend
+# enabled until that hardware load is removed; SPI1's /4 divider is preserved.
+option(GWATCH_LCD_SOFTWARE_SPI "Use GPIO SPI with PA12 SDA settling" ON)
+
 # Enable CMake support for ASM and C languages
 enable_language(C ASM)
 
@@ -47,7 +51,7 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
-    Core/Src/bsp_ili9341_4line.c
+    Core/Src/bsp_gc9a01.c
     Core/Src/bsp_ft6336.c
     Core/Src/bsp_i2c_bus.c
     Core/Src/bsp_sht20.c
@@ -76,7 +80,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 
 # Add project symbols (macros)
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
-    # Add user defined symbols
+    GC9A01_SOFTWARE_SPI=$<BOOL:${GWATCH_LCD_SOFTWARE_SPI}>
 )
 
 # Remove wrong libob.a library dependency when using cpp files

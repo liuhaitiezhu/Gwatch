@@ -30,7 +30,7 @@ namespace
 {
 // Use the section "TouchGFX_Framebuffer" in the linker script to specify the placement of the buffer
 LOCATION_PRAGMA_NOLOAD("TouchGFX_Framebuffer")
-uint32_t frameBuf[(240 * 320 * 2 + 3) / 4] LOCATION_ATTRIBUTE_NOLOAD("TouchGFX_Framebuffer");
+uint32_t frameBuf[(240 * 240 * 2 + 3) / 4] LOCATION_ATTRIBUTE_NOLOAD("TouchGFX_Framebuffer");
 }
 
 void TouchGFXGeneratedHAL::initialize()

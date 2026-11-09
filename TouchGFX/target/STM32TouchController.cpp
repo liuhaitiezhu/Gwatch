@@ -28,7 +28,7 @@
 
 void STM32TouchController::init()
 {
-    // DisplayTouchTask initializes FT6336 after ILI9341: both share RESET on PA8.
+    // DisplayTouchTask owns the existing touch initialization after LCD setup.
     // TouchGFX initializes earlier, so do not reset or initialize FT6336 here.
 }
 
@@ -45,7 +45,7 @@ bool STM32TouchController::sampleTouch(int32_t& x, int32_t& y)
         return false;
     }
 
-    // The current 240x320 portrait display uses the native touch coordinates.
+    // Preserve the existing native coordinates; bounds follow the physical LCD.
     x = touch_x;
     y = touch_y;
     return true;

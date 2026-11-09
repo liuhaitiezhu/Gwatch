@@ -1,4 +1,5 @@
 #include <gui/screen_screen/screenView.hpp>
+#include <touchgfx/hal/HAL.hpp>
 
 screenView::screenView()
 {
@@ -8,6 +9,9 @@ screenView::screenView()
 void screenView::setupScreen()
 {
     screenViewBase::setupScreen();
+    // Use the 240x240 physical viewport with the existing scrollable image.
+    scrollableContainer1.setWidth(touchgfx::HAL::DISPLAY_WIDTH);
+    scrollableContainer1.setHeight(touchgfx::HAL::DISPLAY_HEIGHT);
     // ScrollableContainer records the drag origin from the touched child.
     image1.setTouchable(true);
     // The fixed temperature overlay must not intercept image drags.

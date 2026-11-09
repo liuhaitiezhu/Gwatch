@@ -2,7 +2,7 @@
 #include "bsp_i2c_bus.h"
 #include "bsp_sht20.h"
 #include "bsp_ft6336.h"
-#include "bsp_ili9341_4line.h"
+#include "bsp_gc9a01.h"
 #include "app_touchgfx.h"
 #include "touchgfx_vsync.h"
 #include "main.h"
@@ -152,9 +152,9 @@ static void DisplayTickTimerCallback(TimerHandle_t timer)
 static void DisplayTouchTask(void *argument)
 {
     (void)argument;
-    printf("\r\nTouchGFX + FT6336: USART1 baud=%lu\r\n",
+    printf("\r\nTouchGFX + GC9A01 + FT6336: USART1 baud=%lu\r\n",
            (unsigned long)huart1.Init.BaudRate);
-    const HAL_StatusTypeDef lcd_status = ILI9341_Init();
+    const HAL_StatusTypeDef lcd_status = GC9A01_Init();
     if (lcd_status != HAL_OK)
     {
         printf("[display] initialization failed: status=%u\r\n", (unsigned int)lcd_status);
@@ -164,6 +164,10 @@ static void DisplayTouchTask(void *argument)
     display_ready = lcd_status == HAL_OK;
     if (display_ready)
     {
+        /* Keep the existing IRQ/20 ms fallback scanner running even while
+         * a C20-compatible software-SPI frame takes seconds to transmit. */
+        GC9A01_SetTransferCallback(FT6336_scan_task);
+        GC9A01_SetBacklight(true);
         TimerHandle_t timer = xTimerCreateStatic("gui_tick",
             pdMS_TO_TICKS(GUI_FRAME_PERIOD_MS), pdTRUE,
             xTaskGetCurrentTaskHandle(), DisplayTickTimerCallback, &display_timer_storage);

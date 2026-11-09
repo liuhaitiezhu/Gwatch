@@ -25,7 +25,7 @@
 /* USER CODE BEGIN TouchGFXHAL.cpp */
 
 #include "touchgfx_vsync.h"
-#include "bsp_ili9341_4line.h"
+#include "bsp_gc9a01.h"
 #include "main.h"
 #include <touchgfx/hal/OSWrappers.hpp>
 
@@ -189,7 +189,7 @@ void TouchGFXHAL::endFrame()
     const Rect dirty = pendingDisplayRect;
     const uint16_t stridePixels = strideBytes / 2U;
     const uint16_t* pixels = framebuffer + (uint32_t)dirty.y * stridePixels + dirty.x;
-    if (ILI9341_WriteRectRGB565(dirty.x, dirty.y, dirty.width, dirty.height,
+    if (GC9A01_WriteRectRGB565(dirty.x, dirty.y, dirty.width, dirty.height,
                               pixels, stridePixels) != HAL_OK)
     {
         Error_Handler();

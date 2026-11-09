@@ -22,24 +22,24 @@
                 "Type": "Image",
                 "Name": "image1",
                 "Width": 240,
-                "Height": 510,
-                "RelativeFilename": "LACHANG.png"
+                "Height": 240,
+                "RelativeFilename": "small version.png"
               }
             ]
           },
           {
             "Type": "TextArea",
             "Name": "textArea1",
-            "X": 4,
-            "Y": 30,
+            "X": 24,
+            "Y": 82,
             "Width": 233,
             "Height": 24,
             "TextId": "__SingleUse_41NP",
             "TextRotation": "0",
             "Color": {
-              "Red": 73,
-              "Green": 230,
-              "Blue": 41
+              "Red": 8,
+              "Green": 8,
+              "Blue": 8
             },
             "Wildcard1": {
               "TextId": "__SingleUse_OYPR",
@@ -55,7 +55,7 @@
     "Name": "spi_demo",
     "Resolution": {
       "Width": 240,
-      "Height": 320
+      "Height": 240
     },
     "SelectedColorDepth": 16,
     "StartupScreenName": "screen",
@@ -75,7 +75,7 @@
     "AvailableResolutions": [
       {
         "Width": 240,
-        "Height": 320
+        "Height": 240
       }
     ],
     "PhysicalButtons": [],

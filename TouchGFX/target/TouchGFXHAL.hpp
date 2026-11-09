@@ -25,6 +25,7 @@
 /* USER CODE BEGIN TouchGFXHAL.hpp */
 
 #include <TouchGFXGeneratedHAL.hpp>
+#include "bsp_gc9a01.h"
 
 /**
  * @class TouchGFXHAL
@@ -46,11 +47,16 @@ public:
      * @param [in,out] dma     Reference to DMA interface.
      * @param [in,out] display Reference to LCD interface.
      * @param [in,out] tc      Reference to Touch Controller driver.
-     * @param width            Width of the display.
-     * @param height           Height of the display.
+     * @param width            Legacy generated width; physical panel size is used.
+     * @param height           Legacy generated height; physical panel size is used.
      */
-    TouchGFXHAL(touchgfx::DMA_Interface& dma, touchgfx::LCD& display, touchgfx::TouchController& tc, uint16_t width, uint16_t height) : TouchGFXGeneratedHAL(dma, display, tc, width, height)
+    TouchGFXHAL(touchgfx::DMA_Interface& dma, touchgfx::LCD& display, touchgfx::TouchController& tc, uint16_t /*width*/, uint16_t /*height*/)
+        : TouchGFXGeneratedHAL(dma, display, tc, GC9A01_WIDTH, GC9A01_HEIGHT)
     {
+        // Square panels default to landscape in HAL's constructor. The current
+        // Designer application requests portrait and uses unrotated resources.
+        // Match those native axes so a screen transition keeps rotate0.
+        nativeDisplayOrientation = touchgfx::ORIENTATION_PORTRAIT;
     }
 
     virtual void initialize();
@@ -114,7 +120,7 @@ public:
      *
      * @brief This function is called whenever the framework has performed a partial draw.
      *
-     *        Collect the updated area; endFrame waits for a fresh TE before sending it.
+     *        Collect the updated area; endFrame sends it using the GC9A01 driver.
      *
      * @param rect The area of the screen that has been drawn, expressed in absolute coordinates.
      *
@@ -162,7 +168,7 @@ protected:
 
 private:
     // Full framebuffer stays valid while endFrame blocks. One bounding rectangle
-    // batches all partial draws into one transfer and one TE wait per frame.
+    // batches all partial draws into one blocking transfer per frame.
     touchgfx::Rect pendingDisplayRect;
 };
 

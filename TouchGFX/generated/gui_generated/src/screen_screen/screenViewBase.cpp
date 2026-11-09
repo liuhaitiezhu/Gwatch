@@ -8,7 +8,7 @@
 
 screenViewBase::screenViewBase()
 {
-    __background.setPosition(0, 0, 240, 320);
+    __background.setPosition(0, 0, 240, 240);
     __background.setColor(touchgfx::Color::getColorFromRGB(0, 0, 0));
     add(__background);
 
@@ -17,13 +17,13 @@ screenViewBase::screenViewBase()
     scrollableContainer1.setScrollbarsColor(touchgfx::Color::getColorFromRGB(242, 10, 10));
     scrollableContainer1.setScrollbarsAlpha(255);
     image1.setXY(0, 0);
-    image1.setBitmap(touchgfx::Bitmap(BITMAP_LACHANG_ID));
+    image1.setBitmap(touchgfx::Bitmap(BITMAP_SMALL_VERSION_ID));
     scrollableContainer1.add(image1);
 
     add(scrollableContainer1);
 
-    textArea1.setPosition(4, 30, 233, 24);
-    textArea1.setColor(touchgfx::Color::getColorFromRGB(73, 230, 41));
+    textArea1.setPosition(24, 82, 233, 24);
+    textArea1.setColor(touchgfx::Color::getColorFromRGB(8, 8, 8));
     textArea1.setLinespacing(0);
     Unicode::snprintf(textArea1Buffer, TEXTAREA1_SIZE, "%s", touchgfx::TypedText(T___SINGLEUSE_OYPR).getText());
     textArea1.setWildcard(textArea1Buffer);
