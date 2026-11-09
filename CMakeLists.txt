@@ -51,6 +51,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Core/Src/bsp_ft6336.c
     Core/Src/bsp_i2c_bus.c
     Core/Src/bsp_sht20.c
+    Core/Src/bsp_max30102.c
+    Core/Src/app_max30102.c
     Core/Src/app_freertos.c
 
     # FreeRTOS kernel and optional services

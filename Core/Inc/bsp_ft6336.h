@@ -1,4 +1,4 @@
-/* FT6336 点击坐标与软件滑动接口。 */
+/* FT6336 按下状态与坐标采集接口。 */
 #ifndef BSP_FT6336_H
 #define BSP_FT6336_H
 
@@ -9,29 +9,19 @@
 extern "C" {
 #endif
 
-typedef enum {
-    FT6336_SWIPE_NONE,
-    FT6336_SWIPE_LEFT,
-    FT6336_SWIPE_RIGHT,
-    FT6336_SWIPE_UP,
-    FT6336_SWIPE_DOWN
-} FT6336_Swipe;
-
-/* 在 LCD 初始化后调用，同时配置坐标读取和软件滑动识别。 */
+/* 在 LCD 初始化后调用，配置中断与普通坐标模式。 */
 void FT6336_init(void);
 
-/* PB5 中断中调用，仅通知显示触摸任务。 */
-void FT6336_irq_fuc(void);
+/* 显示触摸任务调用；touch_event 为 true 时立即读取，否则仅在补扫到期时读取。 */
+void FT6336_scan_task(bool touch_event);
 
-/* 显示触摸任务持续调用：快速抬起确认点击；按住移动识别一次滑动，失败无动作。 */
-void FT6336_scan_task(void);
+/* 距下次必要补扫的毫秒数；0 表示到期，UINT32_MAX 表示空闲无需补扫。
+ * 与扫描及缓存读取在同一任务中调用。 */
+uint32_t FT6336_get_scan_delay_ms(void);
 
-/* Read the latest scan without I2C access. Returns true while pressed, including
- * after a swipe was reported. Call from the same task as FT6336_scan_task(). */
+/* 读取缓存，不访问 I2C；按下时返回 true 并输出坐标。
+ * 与 FT6336_scan_task() 在同一任务中调用。 */
 bool FT6336_get_touch(uint16_t *x, uint16_t *y);
-
-/* 显示触摸任务取走一次滑动结果；无新滑动时返回 NONE。 */
-FT6336_Swipe FT6336_take_swipe(void);
 
 #ifdef __cplusplus
 }

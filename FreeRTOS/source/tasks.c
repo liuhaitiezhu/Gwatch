@@ -6858,7 +6858,7 @@ STATIC void prvResetNextTaskUnblockTime( void )
              * If the mutex is held by a task then it cannot be given from an
              * interrupt, and if a mutex is given by the holding task then it must
              * be the running state task. */
-            configASSERT( pxTCB == pxCurrentTCB );
+            configASSERT( pxTCB == pxCurrentTCB );//比较表达式本身也会产生一个值1或者0，只有释放的TCB等于当前持有的PCB的时候，不会触发断言
             configASSERT( pxTCB->uxMutexesHeld );
             ( pxTCB->uxMutexesHeld )--;
 

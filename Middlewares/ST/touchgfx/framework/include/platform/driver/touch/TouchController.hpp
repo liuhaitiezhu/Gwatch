@@ -42,7 +42,7 @@ public:
      *
      * @return True if a touch has been detected, otherwise false.
      */
-    virtual bool sampleTouch(int32_t& x, int32_t& y) = 0;
+    virtual bool sampleTouch(int32_t& x, int32_t& y) = 0;//方便子类重写，然后通过父类指针调用
 };
 
 } // namespace touchgfx

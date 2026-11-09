@@ -1,4 +1,5 @@
 #include "app_freertos.h"
+#include "app_max30102.h"
 #include "bsp_i2c_bus.h"
 #include "bsp_sht20.h"
 #include "bsp_ft6336.h"
@@ -19,6 +20,9 @@
 #define UART_TEXT_SIZE         128U
 #define UART_TIMEOUT_MS        100U
 #define GUI_FRAME_PERIOD_MS    16U
+
+#define DISPLAY_EVENT_TOUCH    (1UL << 0)
+#define DISPLAY_EVENT_GUI      (1UL << 1)
 
 typedef enum
 {
@@ -53,6 +57,8 @@ static volatile bool display_ready;
 static uint32_t display_gui_polls;
 static StaticTimer_t display_timer_storage;
 static volatile uint32_t display_timer_count;
+/* Published by the owner after LCD/touch initialization, before enabling EXTI5. */
+static TaskHandle_t display_touch_task;
 
 static void SHT20_Task(void *argument)
 {
@@ -146,7 +152,7 @@ static void DisplayTickTimerCallback(TimerHandle_t timer)
 {
     ++display_timer_count;
     /* Timer-service task only wakes the GUI owner; it never touches the HAL. */
-    (void)xTaskNotifyGive((TaskHandle_t)pvTimerGetTimerID(timer));
+    (void)xTaskNotify((TaskHandle_t)pvTimerGetTimerID(timer), DISPLAY_EVENT_GUI, eSetBits);
 }
 
 static void DisplayTouchTask(void *argument)
@@ -179,17 +185,17 @@ static void DisplayTouchTask(void *argument)
     printf("[rtos] SHT20 -> queue -> USART1, sample period=%lu ms\r\n",
            (unsigned long)SHT20_SAMPLE_PERIOD_MS);
     TickType_t last_display_report = xTaskGetTickCount();
+    uint32_t events = 0U;
+    display_touch_task = xTaskGetCurrentTaskHandle();
+    HAL_NVIC_EnableIRQ(EXTI5_IRQn);
     for (;;)
     {
         /* Scan and read the touch cache in the same task as TouchGFX. */
-        FT6336_scan_task();
-        if (display_ready)
+        FT6336_scan_task((events & DISPLAY_EVENT_TOUCH) != 0U);
+        if (display_ready && (events & DISPLAY_EVENT_GUI) != 0U)
         {
-            /* Coalesce elapsed periods after a slow draw; no catch-up burst. */
-            if (ulTaskNotifyTake(pdTRUE, 0U) != 0U)
-            {
-                TouchGFX_TimerTick();
-            }
+            /* Event bits coalesce elapsed periods after a slow draw. */
+            TouchGFX_TimerTick();
             MX_TouchGFX_Process();
         }
         const TickType_t now = xTaskGetTickCount();
@@ -200,7 +206,27 @@ static void DisplayTouchTask(void *argument)
                    (unsigned long)display_gui_polls);
             last_display_report = now;
         }
-        vTaskDelay(pdMS_TO_TICKS(1U));
+        /* Preserve the diagnostic deadline even if LCD initialization failed. */
+        const TickType_t report_period = pdMS_TO_TICKS(SHT20_SAMPLE_PERIOD_MS);
+        const TickType_t since_report = xTaskGetTickCount() - last_display_report;
+        TickType_t wait_ticks = since_report < report_period ? report_period - since_report : 0U;
+        const uint32_t scan_delay_ms = FT6336_get_scan_delay_ms();
+        if (scan_delay_ms != UINT32_MAX)
+        {
+            TickType_t scan_ticks = pdMS_TO_TICKS(scan_delay_ms);
+            if (scan_delay_ms != 0U && scan_ticks == 0U)
+            {
+                scan_ticks = 1U;
+            }
+            if (scan_ticks < wait_ticks)
+            {
+                wait_ticks = scan_ticks;
+            }
+        }
+        /* Do not restart the touch deadline on GUI wakeups. Notifications that
+         * arrive while scanning/drawing remain pending for this atomic wait. */
+        events = 0U;
+        (void)xTaskNotifyWait(0U, UINT32_MAX, &events, wait_ticks);
     }
 }
 
@@ -252,6 +278,25 @@ int App_UART_Write(const char *data, int length)
     return sent;
 }
 
+int App_UART_TryWrite(const char *data, int length)
+{
+    if (data == NULL || length < 0 || length > (int)UART_TEXT_SIZE ||
+        __get_IPSR() != 0U || uart_queue == NULL ||
+        xTaskGetSchedulerState() != taskSCHEDULER_RUNNING)
+    {
+        return -1;
+    }
+    if (length == 0)
+    {
+        return 0;
+    }
+    UART_Message message = {0};
+    message.type = UART_MESSAGE_TEXT;
+    message.payload.text.length = (uint16_t)length;
+    memcpy(message.payload.text.data, data, (size_t)length);
+    return xQueueSend(uart_queue, &message, 0U) == pdPASS ? length : -1;
+}
+
 HAL_StatusTypeDef App_FreeRTOS_Start(void)
 {
     if (uart_queue != NULL || temperature_queue != NULL ||
@@ -264,6 +309,11 @@ HAL_StatusTypeDef App_FreeRTOS_Start(void)
     HAL_NVIC_DisableIRQ(EXTI11_IRQn);
     HAL_GPIO_DeInit(GPIOA, GPIO_PIN_11);
     HAL_NVIC_ClearPendingIRQ(EXTI11_IRQn);
+    /* Override generated priority 0 in application code. EXTI5 may use FromISR
+     * only after the touch owner is initialized; the .ioc remains unchanged. */
+    HAL_NVIC_DisableIRQ(EXTI5_IRQn);
+    HAL_NVIC_SetPriority(EXTI5_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY, 0U);
+    HAL_NVIC_ClearPendingIRQ(EXTI5_IRQn);
     if (BSP_I2C1_InitMutex() != HAL_OK)
     {
         return HAL_ERROR;
@@ -281,11 +331,13 @@ HAL_StatusTypeDef App_FreeRTOS_Start(void)
         uart_queue = NULL;
         return HAL_ERROR;
     }
-    /* Stack sizes are 32-bit words: 3 KiB, 2 KiB, and 8 KiB respectively. */
+    /* Stack sizes are 32-bit words: 3 KiB, 2 KiB, and 8 KiB respectively.
+     * MAX30102 owns an additional 2 KiB stack and one latest-reading queue. */
     TaskHandle_t uart_task = NULL;
     TaskHandle_t sensor_task = NULL;
     TaskHandle_t app_task = NULL;
-    if (xTaskCreate(UART_PrintTask, "uart_print", 768U, NULL, 2U, &uart_task) == pdPASS &&
+    if (App_MAX30102_CreateTask() == HAL_OK &&
+        xTaskCreate(UART_PrintTask, "uart_print", 768U, NULL, 2U, &uart_task) == pdPASS &&
         xTaskCreate(SHT20_Task, "sht20", 512U, NULL, 2U, &sensor_task) == pdPASS &&
         xTaskCreate(DisplayTouchTask, "display_touch", 2048U, NULL, 1U, &app_task) == pdPASS)
     {
@@ -296,6 +348,7 @@ HAL_StatusTypeDef App_FreeRTOS_Start(void)
     if (uart_task != NULL) { vTaskDelete(uart_task); }
     if (sensor_task != NULL) { vTaskDelete(sensor_task); }
     if (app_task != NULL) { vTaskDelete(app_task); }
+    App_MAX30102_DeleteTask();
     vQueueDelete(temperature_queue);
     temperature_queue = NULL;
     vQueueDelete(uart_queue);
@@ -306,9 +359,12 @@ HAL_StatusTypeDef App_FreeRTOS_Start(void)
 /* Hardware IRQs notify the owning task; never perform I2C/SPI in the ISR. */
 void HAL_GPIO_EXTI_Falling_Callback(uint16_t GPIO_Pin)
 {
-    if (GPIO_Pin == GPIO_PIN_5)
+    if (GPIO_Pin == GPIO_PIN_5 && display_touch_task != NULL)
     {
-        FT6336_irq_fuc();
+        BaseType_t higher_priority_task_woken = pdFALSE;
+        (void)xTaskNotifyFromISR(display_touch_task, DISPLAY_EVENT_TOUCH, eSetBits,
+                                 &higher_priority_task_woken);
+        portYIELD_FROM_ISR(higher_priority_task_woken);
     }
 }
 

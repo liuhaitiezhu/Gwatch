@@ -1,4 +1,4 @@
-/* FT6336：抬起时确认点击，按住移动时识别一次单指滑动。 */
+/* FT6336：采集按下状态和坐标，点击及滑动识别交给 TouchGFX。 */
 #include "bsp_ft6336.h"
 #include "i2c.h"
 #include "bsp_i2c_bus.h"
@@ -12,15 +12,11 @@
 
 #define FT6336_TOUCH_POLL_MS          20U
 #define FT6336_I2C_ERROR_REPORT_MS  1000U
-#define FT6336_CLICK_MAX_DURATION    250U
-#define FT6336_CLICK_MAX_MOVEMENT     10U
-#define FT6336_SWIPE_MIN_DISTANCE     40U
 
 typedef enum
 {
     TOUCH_IDLE,
     TOUCH_TRACKING,
-    TOUCH_REPORTED,  /* 本次滑动已经输出，等待抬起。 */
     TOUCH_IGNORED    /* 双指或数据异常，等待本次触摸结束。 */
 } FT6336_TouchState;
 
@@ -28,13 +24,9 @@ static struct
 {
     FT6336_TouchState state;
     uint8_t id;
-    bool click_moved;
-    uint16_t start_x;
-    uint16_t start_y;
     uint16_t x;
     uint16_t y;
     bool pressed;
-    uint32_t start_tick;
 } touch;
 
 static struct
@@ -46,16 +38,10 @@ static struct
     uint32_t last_error_tick;
 } task;
 
-static volatile bool touch_irq_pending;
-static bool swipe_enabled;
-static FT6336_Swipe pending_swipe;
-
 static bool FT6336_read(uint8_t reg, uint8_t *data, uint16_t size);
 static bool FT6336_write(uint8_t reg, uint8_t value);
 static void FT6336_report_error(const char *operation, uint8_t reg,
                                 HAL_StatusTypeDef status, uint32_t error);
-static void FT6336_track_position(uint16_t x, uint16_t y, uint32_t now);
-static void FT6336_finish_touch(uint32_t now);
 
 void FT6336_init(void)
 {
@@ -63,8 +49,6 @@ void FT6336_init(void)
     touch.pressed = false;
     task.poll_started = false;
     task.error_reported = false;
-    touch_irq_pending = false;
-    pending_swipe = FT6336_SWIPE_NONE;
 
     /* RESET 与 LCD 共用 PA8，LCD 初始化后只等待触摸启动，不再次复位。 */
     HAL_Delay(300);
@@ -78,45 +62,37 @@ void FT6336_init(void)
         printf("[touch] interrupt mode not confirmed; polling enabled\r\n");
     }
 
-    /* 普通坐标模式：用坐标位移识别滑动。 */
+    /* 配置普通坐标模式，供 TouchGFX 读取触点。 */
     mode = 0xFFU;
-    swipe_enabled = FT6336_write(FT6336_REG_GESTURE_MODE, 0U) &&
-        FT6336_read(FT6336_REG_GESTURE_MODE, &mode, 1U) && mode == 0U;
-    if (!swipe_enabled)
+    if (!FT6336_write(FT6336_REG_GESTURE_MODE, 0U) ||
+        !FT6336_read(FT6336_REG_GESTURE_MODE, &mode, 1U) || mode != 0U)
     {
-        printf("[touch] swipe disabled: normal touch mode not confirmed\r\n");
+        printf("[touch] normal touch mode not confirmed\r\n");
     }
 }
 
-void FT6336_irq_fuc(void)
+uint32_t FT6336_get_scan_delay_ms(void)
 {
-    touch_irq_pending = true;
+    if (!task.poll_started)
+    {
+        return 0U;
+    }
+    if (task.interrupt_mode_confirmed && touch.state == TOUCH_IDLE)
+    {
+        return UINT32_MAX;
+    }
+    const uint32_t elapsed = (uint32_t)(HAL_GetTick() - task.last_poll_tick);
+    return elapsed < FT6336_TOUCH_POLL_MS ? FT6336_TOUCH_POLL_MS - elapsed : 0U;
 }
 
-void FT6336_scan_task(void)
+void FT6336_scan_task(bool touch_event)
 {
-    uint32_t now = HAL_GetTick();
-
-    /* 原子取走中断通知，避免清零时丢失刚到达的中断。 */
-    uint32_t primask = __get_PRIMASK();
-    __disable_irq();
-    const bool pending = touch_irq_pending;
-    touch_irq_pending = false;
-    __set_PRIMASK(primask);
-
-    if (task.poll_started && !pending)//已经采样过并且没有中断进入下列判断
+    if (!touch_event && FT6336_get_scan_delay_ms() != 0U)
     {
-        if (task.interrupt_mode_confirmed && touch.state == TOUCH_IDLE)
-        {
-            return;
-        }
-        if ((uint32_t)(now - task.last_poll_tick) < FT6336_TOUCH_POLL_MS)
-        {
-            return;
-        }
+        return;
     }
     task.poll_started = true;
-    task.last_poll_tick = now;
+    task.last_poll_tick = HAL_GetTick();
 
     /* 只需触点数和第一个触点的 X/Y，即 0x02~0x06。 */
     uint8_t data[5];
@@ -130,7 +106,7 @@ void FT6336_scan_task(void)
     uint8_t count = data[0] & 0x0FU;
     if (count == 0U)
     {
-        FT6336_finish_touch(now);
+        touch.state = TOUCH_IDLE;
         return;
     }
     if (count > 1U)
@@ -161,31 +137,20 @@ void FT6336_scan_task(void)
             return;
         }
         touch.id = id;
-        touch.start_x = (uint16_t)(((data[1] & 0x0FU) << 8) | data[2]);
-        touch.start_y = (uint16_t)(((data[3] & 0x0FU) << 8) | data[4]);
-        touch.x = touch.start_x;
-        touch.y = touch.start_y;
-        touch.pressed = true;
-        touch.start_tick = now;
-        touch.click_moved = false;
         touch.state = TOUCH_TRACKING;
-        return;
     }
-    if (id != touch.id)
+    else if (id != touch.id)
     {
         touch.state = TOUCH_IGNORED;
         return;
     }
 
-    uint16_t x = (uint16_t)(((data[1] & 0x0FU) << 8) | data[2]);
-    uint16_t y = (uint16_t)(((data[3] & 0x0FU) << 8) | data[4]);
-    touch.x = x;
-    touch.y = y;
+    touch.x = (uint16_t)(((data[1] & 0x0FU) << 8) | data[2]);
+    touch.y = (uint16_t)(((data[3] & 0x0FU) << 8) | data[4]);
     touch.pressed = event != 1U;
-    FT6336_track_position(x, y, now);
     if (event == 1U)
     {
-        FT6336_finish_touch(now);
+        touch.state = TOUCH_IDLE;
     }
 }
 
@@ -198,56 +163,6 @@ bool FT6336_get_touch(uint16_t *x, uint16_t *y)
     *x = touch.x;
     *y = touch.y;
     return true;
-}
-
-FT6336_Swipe FT6336_take_swipe(void)
-{
-    FT6336_Swipe swipe = pending_swipe;
-    pending_swipe = FT6336_SWIPE_NONE;
-    return swipe;
-}
-
-static void FT6336_track_position(uint16_t x, uint16_t y, uint32_t now)
-{
-    if (touch.state != TOUCH_TRACKING)
-    {
-        return;
-    }
-
-    int32_t dx = (int32_t)x - (int32_t)touch.start_x;
-    int32_t dy = (int32_t)y - (int32_t)touch.start_y;
-    if ((uint32_t)(dx * dx + dy * dy) >
-        FT6336_CLICK_MAX_MOVEMENT * FT6336_CLICK_MAX_MOVEMENT)
-    {
-        touch.click_moved = true; /* 返回原点也不会恢复为点击。 */
-    }
-
-    uint32_t distance_x = (uint32_t)(dx < 0 ? -dx : dx);
-    uint32_t distance_y = (uint32_t)(dy < 0 ? -dy : dy);
-    if (!swipe_enabled ||
-        (distance_x < FT6336_SWIPE_MIN_DISTANCE && distance_y < FT6336_SWIPE_MIN_DISTANCE))
-    {
-        return;
-    }
-
-    static const char *const names[] = {"None", "Move Left", "Move Right", "Move Up", "Move Down"};
-    pending_swipe = distance_x >= distance_y ?
-        (dx > 0 ? FT6336_SWIPE_RIGHT : FT6336_SWIPE_LEFT) :
-        (dy > 0 ? FT6336_SWIPE_DOWN : FT6336_SWIPE_UP);
-    touch.state = TOUCH_REPORTED;
-    printf("[gesture-sw] %s, dx=%ld, dy=%ld, duration=%lu ms\r\n", names[pending_swipe],
-           (long)dx, (long)dy, (unsigned long)(now - touch.start_tick));
-}
-
-static void FT6336_finish_touch(uint32_t now)
-{
-    if (touch.state == TOUCH_TRACKING && !touch.click_moved &&
-        (uint32_t)(now - touch.start_tick) <= FT6336_CLICK_MAX_DURATION)
-    {
-        printf("[touch] Click id=%u, x=%u, y=%u\r\n", (unsigned int)touch.id,
-               (unsigned int)touch.start_x, (unsigned int)touch.start_y);
-    }
-    touch.state = TOUCH_IDLE;
 }
 
 static bool FT6336_read(uint8_t reg, uint8_t *data, uint16_t size)

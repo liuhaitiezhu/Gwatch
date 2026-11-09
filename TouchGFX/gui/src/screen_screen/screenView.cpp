@@ -26,7 +26,7 @@ void screenView::handleGestureEvent(const touchgfx::GestureEvent& event)
     // so releasing the finger stops at the current position.
     if (event.getType() != touchgfx::GestureEvent::SWIPE_VERTICAL)
     {
-        screenViewBase::handleGestureEvent(event);
+        screenViewBase::handleGestureEvent(event);//因为指定调用父类的handleGestureEvent函数，静态编译库中，看不了源码
     }
 }
 

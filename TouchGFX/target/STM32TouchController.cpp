@@ -32,7 +32,7 @@ void STM32TouchController::init()
     // TouchGFX initializes earlier, so do not reset or initialize FT6336 here.
 }
 
-bool STM32TouchController::sampleTouch(int32_t& x, int32_t& y)
+bool STM32TouchController::sampleTouch(int32_t& x, int32_t& y)//每一帧调用一次
 {
     // DisplayTouchTask owns FT6336_scan_task(). Read its cached
     // state here so TouchGFX does not start a second I2C transaction.

@@ -48,6 +48,7 @@ public:
      * @param  x        The x coordinate of the gesture.
      * @param  y        The y coordinate of the gesture.
      */
+     //下面是构造函数重载，根据参数调用不同的构造函数
     GestureEvent(GestureEventType type, int16_t velocity, int16_t x, int16_t y)
         : gestureEventType(type),
           gestureVelocity(velocity),
@@ -71,7 +72,7 @@ public:
      *
      * @return The velocity of this gesture event.
      */
-    int16_t getVelocity() const
+    int16_t getVelocity() const   //const成员函数，不能修改类的成员变量，只是获得private成员变量的值
     {
         return gestureVelocity;
     }
@@ -134,6 +135,7 @@ public:
 
 private:
     /** Initializes a new instance of the GestureEvent class. */
+    //给内部保留了一个默认构造函数，初始化了手势事件类型为水平滑动，速度为0，坐标为(0,0)
     GestureEvent()
         : gestureEventType(SWIPE_HORIZONTAL), gestureVelocity(0), gestureX(0), gestureY(0)
     {
